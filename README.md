@@ -79,8 +79,17 @@ Requires `jq` and the agent CLI under test (`claude` by default, or `--client op
 Any other client works via `--detector-cmd`, which receives raw agent output on stdin and
 exits 0 when the skill was consulted.
 
+The runner does a preflight call first and aborts if the client is unauthenticated —
+otherwise every query would score as a silent non-trigger and the report would be
+meaningless.
+
 Run it whenever you change the `description`. The query set is split 60/40 into a fixed
 train/validation pair — optimize on train, then check validation for overfitting.
+
+**Current status:** 12/12 on the train split (opencode, 3 runs/query, 2026-10-15).
+Description left unchanged. Validation split not yet run.
+
+If `claude -p` reports "Not logged in", run `claude` once and complete `/login`.
 
 ## Versions
 

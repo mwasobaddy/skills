@@ -15,6 +15,18 @@
       "'translations' is an intentionally broad keyword — it is the most likely false-positive source. The negatives N1, N2, N3, N5 exist to police it.",
       "'Next.js' appears in the description but not in every positive query, testing whether intent-based phrasing still fires.",
       "N6 is a formatting-only Next.js question. The skill does cover Intl formatting, but a one-line question does not warrant loading a skill — the docs note agents skip skills for tasks they can handle directly."
+    ],
+    "results": [
+      {
+        "date": "2026-10-15",
+        "client": "opencode",
+        "split": "train",
+        "runs_per_query": 3,
+        "threshold": 0.5,
+        "passed": "12/12",
+        "description_changed": false,
+        "conclusion": "Description fires on every should-trigger query (8/8, lowest rate 0.67) and correctly ignores every should-not-trigger query (4/4 at 0.00). No change warranted. Validation split not yet run."
+      }
     ]
   },
   "queries": [

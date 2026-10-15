@@ -60,43 +60,85 @@ case "$SPLIT" in all|train|validation) ;; *) die "--split must be all, train or 
 # run_client emits the raw agent output on stdout.
 
 run_client() {
+  # stdin must come from /dev/null: this runs inside a `while read` loop whose stdin is
+  # the query list, and an agent CLI that reads stdin would swallow the remaining queries.
   case "$CLIENT" in
-    claude)   claude -p "$1" --output-format json 2>/dev/null ;;
-    opencode) opencode run --format json "$1" 2>/dev/null ;;
+    # stream-json is required: the single-result `json` format omits tool calls
+    # entirely, so a Skill invocation is invisible there.
+    claude)   claude -p "$1" --output-format stream-json --verbose </dev/null 2>/dev/null ;;
+    opencode) opencode run --format json "$1" </dev/null 2>/dev/null ;;
     *) die "unknown client '$CLIENT' (or supply --detector-cmd)" ;;
   esac
+}
+
+# A broken client must never be scored as "the skill did not fire". An auth
+# failure looks exactly like a non-trigger otherwise, and silently poisons the
+# whole run. Abort instead.
+client_looks_broken() {
+  local out="$1"
+  [ -z "$out" ] && return 0
+  case "$CLIENT" in
+    claude)
+      printf '%s' "$out" | grep -qE '"is_error"[[:space:]]*:[[:space:]]*true' && return 0
+      printf '%s' "$out" | grep -qiE 'not logged in|please run /login|"api_error_status"' && return 0
+      ;;
+    opencode)
+      printf '%s' "$out" | grep -qiE '"type"[[:space:]]*:[[:space:]]*"error"|unauthorized|invalid.*api.*key' && return 0
+      ;;
+  esac
+  return 1
 }
 
 # --- detectors --------------------------------------------------------------------
 # Each reads raw client output on stdin; exit 0 means the skill was consulted.
 
+# Claude Code stream-json: assistant tool_use blocks, name "Skill", input.skill.
 detect_claude() {
-  jq -e --arg skill "$SKILL_NAME" '
-    any(.messages[]?.content[]?;
-        (.type == "tool_use" and .name == "Skill" and .input.skill == $skill))
+  jq -e --arg skill "$SKILL_NAME" -s '
+    any(.[];
+        .. | objects
+        | select(.type? == "tool_use" and .name? == "Skill" and .input.skill? == $skill))
   ' >/dev/null 2>&1
 }
 
+# opencode event stream: {"type":"tool","part":{"tool":"skill","state":{"input":{...}}}}
 detect_opencode() {
-  # `opencode run --format json` emits a JSON event stream. The event shape for skill
-  # activation is not stable across opencode versions, so this looks for any tool event
-  # naming the skill. If it misreports, pass --detector-cmd with your own jq filter.
-  jq -e --arg skill "$SKILL_NAME" '
-    [ .. | objects
-      | select(((.tool? // .toolName? // .name? // "") | tostring | ascii_downcase) == "skill")
-      | .. | strings
-      | select(contains($skill)) ] | length > 0
+  jq -e --arg skill "$SKILL_NAME" -s '
+    any(.[].part?;
+        (.tool? == "skill" and (.state.input | tostring | contains($skill))))
   ' >/dev/null 2>&1
 }
 
 check_triggered() {
   if [ -n "$DETECTOR_CMD" ]; then
-    run_client "$1" | bash -c "$DETECTOR_CMD"
+    run_client "$1" | bash -c "$DETECTOR_CMD" </dev/stdin
   elif [ "$CLIENT" = "opencode" ]; then
     run_client "$1" | detect_opencode
   else
     run_client "$1" | detect_claude
   fi
+}
+
+# Warm-up run: proves the client is authenticated and the detector matches this
+# client's real output before spending N runs on every query.
+preflight() {
+  local probe out
+  probe="$(jq -r '.queries[] | select(.should_trigger) | .query' "$QUERIES" | head -1)"
+  printf 'Preflight (%s): ' "$CLIENT"
+  out="$(run_client "$probe")"
+
+  if client_looks_broken "$out"; then
+    printf 'FAILED\n'
+    printf '\nThe %s client is not answering — most likely not authenticated.\n' "$CLIENT"
+    case "$CLIENT" in
+      claude)   printf 'Run `claude` once and complete /login, then retry.\n' ;;
+      opencode) printf 'Check that opencode is signed in, then retry.\n' ;;
+    esac
+    printf 'Scores from a broken client are meaningless, so this run was aborted.\n'
+    exit 1
+  fi
+
+  printf 'ok — %s bytes\n' "${#out}"
 }
 
 # --- build the query list ---------------------------------------------------------
@@ -122,6 +164,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 # --- run --------------------------------------------------------------------------
+# Preflight before spending runs: catches an unauthenticated client immediately
+# rather than reporting every query as a non-trigger.
+preflight
+
 RESULTS='[]'
 PASSED=0
 FAILED=0
@@ -138,10 +184,23 @@ while IFS=$'\t' read -r query should_trigger split note; do
   done
 
   rate="$(awk -v t="$triggers" -v r="$RUNS" 'BEGIN {printf "%.2f", t / r}')"
-  if awk -v r="$rate" -v th="$THRESHOLD" 'BEGIN {exit !(r >= th)}'; then
-    verdict=pass; PASSED=$((PASSED + 1))
+
+  # The pass condition is direction-aware. A should-trigger query passes when it fires
+  # at or above the threshold; a should-not-trigger query passes when it fires *below*
+  # it. Comparing both against `>= threshold` marks every correctly-ignored query as a
+  # failure, which sends you "fixing" a description that is already right.
+  if [ "$should_trigger" = "true" ]; then
+    if awk -v r="$rate" -v th="$THRESHOLD" 'BEGIN {exit !(r >= th)}'; then
+      verdict=pass; PASSED=$((PASSED + 1))
+    else
+      verdict=FAIL; FAILED=$((FAILED + 1))
+    fi
   else
-    verdict=FAIL; FAILED=$((FAILED + 1))
+    if awk -v r="$rate" -v th="$THRESHOLD" 'BEGIN {exit !(r < th)}'; then
+      verdict=pass; PASSED=$((PASSED + 1))
+    else
+      verdict=FAIL; FAILED=$((FAILED + 1))
+    fi
   fi
   printf '%d/%d (%s) %s\n' "$triggers" "$RUNS" "$rate" "$verdict"
 
