@@ -3,7 +3,7 @@ name: nextjs-i18n
 description: Architect and implement internationalization for Next.js App Router apps — folder structure, locale-prefixed routing, typed message files, ICU plurals, and localized SEO with hreflang. Use when adding or fixing multiple languages or translations on a Next.js site or app, choosing between next-intl, Lingui and next-i18next, wiring a [locale] segment with proxy or middleware, or migrating an English-only app to localized URLs. Triggers on i18n, localization, multi-language, translations, locale routing, lang attribute, hreflang, next-intl.
 license: MIT
 metadata:
-  author: hiikey7
+  author: mwasobaddy
   version: "1.0"
 ---
 
