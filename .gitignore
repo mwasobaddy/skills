@@ -1,0 +1,18 @@
+# Meta files only. Every skill folder is its own git repository.
+# Ignore everything at root by default, then allowlist the meta files.
+/*
+
+!/AGENTS.md
+!/README.md
+!/.gitignore
+!/templates/
+!/scripts/
+
+# Never commit secrets, anywhere.
+.env
+.env.*
+*.key
+*.pem
+
+# OS noise
+.DS_Store
