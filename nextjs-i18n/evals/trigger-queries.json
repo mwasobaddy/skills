@@ -1,0 +1,154 @@
+{
+  "_meta": {
+    "skill": "nextjs-i18n",
+    "purpose": "Trigger evals for the SKILL.md description. A query passes when the skill is loaded exactly as should_trigger expects, measured as a trigger rate over N runs.",
+    "method": "https://agentskills.io/skill-creation/optimizing-descriptions",
+    "runs_per_query": 3,
+    "threshold": 0.5,
+    "split_policy": "Fixed at 12 train / 8 validation (60/40). Never optimize against the validation set — it exists only to detect overfitting. Keep the split stable across iterations so runs are comparable.",
+    "how_to_read_failures": {
+      "should_trigger_false": "Description too narrow, or the wording the agent would actually use is missing. Broaden the concept; do not paste keywords from the failed query.",
+      "should_trigger_low_rate": "Nondeterminism. Re-run before editing the description — a single run proves nothing.",
+      "should_not_trigger_true": "Description too broad. Add specificity about what the skill does NOT cover (other frameworks, translation of content, formatting-only questions)."
+    },
+    "known_risks": [
+      "'translations' is an intentionally broad keyword — it is the most likely false-positive source. The negatives N1, N2, N3, N5 exist to police it.",
+      "'Next.js' appears in the description but not in every positive query, testing whether intent-based phrasing still fires.",
+      "N6 is a formatting-only Next.js question. The skill does cover Intl formatting, but a one-line question does not warrant loading a skill — the docs note agents skip skills for tasks they can handle directly."
+    ],
+    "results": [
+      {
+        "date": "2026-10-15",
+        "client": "opencode",
+        "split": "train",
+        "runs_per_query": 3,
+        "threshold": 0.5,
+        "passed": "12/12",
+        "description_changed": false,
+        "conclusion": "Description fires on every should-trigger query (8/8, lowest rate 0.67) and correctly ignores every should-not-trigger query (4/4 at 0.00). No change warranted. Validation split not yet run."
+      }
+    ]
+  },
+  "queries": [
+    {
+      "query": "we need to add german and french to our next.js app. what should the folder structure look like?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Canonical positive. Explicit framework + explicit structural ask."
+    },
+    {
+      "query": "my next 15 app only has english, want spanish too. where do translation json files go?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Implicit — never says 'i18n' or 'locale'. Tests that the description covers intent, not just the jargon."
+    },
+    {
+      "query": "after adding next-intl our /de/about page 404s but /en/about is fine, what did we miss?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Debugging shape. Most likely cause is a missing hasLocale/notFound guard, which lives in the skill's gotchas."
+    },
+    {
+      "query": "next-intl or lingui for a next.js app shipping in 12 locales?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Library comparison. Direct hit for references/library-comparison.md."
+    },
+    {
+      "query": "add hreflang tags and localized metadata to our next.js marketing site",
+      "should_trigger": true,
+      "split": "train",
+      "note": "SEO-only slice. Verifies the skill fires for hreflang alone, not only for full routing work."
+    },
+    {
+      "query": "launching in japan next quarter, need the checkout page translated with correct plural forms",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Pure business intent, zero technical vocabulary. The hardest positive."
+    },
+    {
+      "query": "we put i18n: {locales:[...]} in next.config.js but every url still serves english",
+      "should_trigger": true,
+      "split": "train",
+      "note": "The built-in-i18n trap. Must fire, and must correct the premise — that config is Pages Router only."
+    },
+    {
+      "query": "need a language switcher that keeps users on the same page not the homepage",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Component-level ask. Tests that single-component work still activates the skill."
+    },
+    {
+      "query": "translating our whole marketing site into 3 languages. existing urls are /about /pricing /blog. how do we not tank seo?",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Retrofit framing with SEO risk. Held out to test generalization."
+    },
+    {
+      "query": "my german build throws hydration mismatch warnings about dates, what's wrong",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Symptom-only description, no mention of i18n or dates-as-i18n. Held out."
+    },
+    {
+      "query": "should this ui string go in the translation file or stay inline in the component?",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Convention question. Held out — tests whether the skill fires for judgment calls, not just setup."
+    },
+    {
+      "query": "we're on pages router, next.config i18n with locales — does that apply or do we need app router setup?",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Router-variant disambiguation. Held out. Judgment call: the skill is App Router-first but does answer this."
+    },
+    {
+      "query": "translate 'Add to cart' into japanese for me",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Nearest miss. 'translate' with no framework context. Must not fire."
+    },
+    {
+      "query": "how do i set up gettext .po files for our django app?",
+      "should_trigger": false,
+      "split": "train",
+      "note": "i18n on a different framework."
+    },
+    {
+      "query": "our express backend needs i18n json message files, how should we structure them",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Right keyword, wrong runtime. Directly tests the 'translations' false-positive risk."
+    },
+    {
+      "query": "update the pricing page copy, hero should say 'Simple, transparent pricing'",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Copy editing. Content work, not localization."
+    },
+    {
+      "query": "localize our react native app, we have ios and android clients",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Different platform. Held out."
+    },
+    {
+      "query": "how do i format prices in next.js with Intl.NumberFormat",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Correct framework, formatting only, no translation. A one-step answerable task."
+    },
+    {
+      "query": "write unit tests for the cart page using vitest",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Same framework, unrelated domain."
+    },
+    {
+      "query": "add arabic rtl support to a flutter app",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Localization on a non-web platform. Held out — the highest-risk false positive for the word 'multi-language'."
+    }
+  ]
+}
