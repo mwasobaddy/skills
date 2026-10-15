@@ -3,7 +3,7 @@ name: skill-name
 description: TODO — one or two sentences stating what this skill does and when to use it. Use this skill when the user asks for X, mentions Y, or works with Z. Must be under 1024 characters.
 license: MIT
 metadata:
-  author: hiikey7
+  author: mwasobaddy
   version: "1.0"
 ---
 

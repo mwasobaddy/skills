@@ -43,7 +43,7 @@ are in [AGENTS.md](AGENTS.md).
 ./scripts/install.sh --all            # symlink every skill
 ```
 
-This symlinks into `~/.claude/skills` and `~/.config/opencode/skill`, so edits take
+This symlinks into `~/.claude/skills`, `~/.config/opencode/skills`, `~/.agents/skills` and `~/.codex/skills`, so edits take
 effect immediately without reinstalling.
 
 ## Registry

@@ -32,7 +32,7 @@ description: ...              # required, max 1024 chars
 license: MIT                  # optional
 compatibility: ...            # optional, max 500 chars
 metadata:                     # optional, string->string map
-  author: hiikey7
+  author: mwasobaddy
   version: "1.0"
 allowed-tools: Read Grep      # optional, space-separated
 ---
