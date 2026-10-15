@@ -50,7 +50,7 @@ effect immediately without reinstalling.
 
 | Skill | What it does | Install |
 | --- | --- | --- |
-| _(none yet)_ | | |
+| [nextjs-i18n](nextjs-i18n) | Next.js App Router internationalization — library choice, locale routing, message catalogs, ICU plurals, hreflang, and retrofitting an existing app | `./scripts/install.sh nextjs-i18n` |
 
 Add a row here in the root repo when you add a skill — the registry is the only place
 that tracks skills across repos.

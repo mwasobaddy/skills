@@ -151,12 +151,24 @@ if [ -f "$DIR/.env" ] || grep -rqsE '(sk-[A-Za-z0-9]{20}|ghp_[A-Za-z0-9]{20}|AKI
 fi
 
 # --- official validator (optional) -------------------------------------------------
-if command -v skills-ref >/dev/null 2>&1; then
-  if skills-ref validate "$DIR" >/dev/null 2>&1; then
-    ok "skills-ref validate"
+# The PyPI package `skills-ref` provides the `agentskills` executable, not `skills-ref`.
+run_official_validator() {
+  if command -v skills-ref >/dev/null 2>&1; then
+    skills-ref validate "$DIR" >/dev/null 2>&1
+  elif command -v agentskills >/dev/null 2>&1; then
+    agentskills validate "$DIR" >/dev/null 2>&1
   else
-    err "skills-ref validate failed"
+    return 127
   fi
+}
+
+if run_official_validator; then
+  ok "official validator (agentskills)"
+else
+  case $? in
+    127) warn "official validator not installed — run: uvx --from skills-ref agentskills validate $NAME" ;;
+    *)   err "official validator reported a problem" ;;
+  esac
 fi
 
 [ "$FAIL" -eq 0 ] && printf '\n  valid\n\n' || printf '\n  invalid\n\n'

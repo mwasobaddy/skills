@@ -191,11 +191,11 @@ Run before every commit:
 ```
 
 Checks `name` format and folder match, `description` presence and length, allowed
-frontmatter keys, required files, and reserved names. With `skills-ref` installed it
+frontmatter keys, required files, and reserved names. With the official validator installed it
 also runs the official validator:
 
 ```bash
-uvx skills-ref validate ./<skill-name>
+uvx --from skills-ref agentskills validate ./<skill-name>
 ```
 
 ---
