@@ -1,9 +1,13 @@
 # AGENTS.md — Rules for this skills repository
 
-This folder is a **collection of independent Agent Skills**. Each subfolder is its own
-Git repository, installable on its own, without this folder.
+This folder is a **collection of Agent Skills**. All skills live in this one repository and
+are installed individually.
 
 Follow these rules for any work in this folder. They override default habits.
+
+> **Read [PITFALLS.md](PITFALLS.md) before writing or changing any script.** Every entry
+> there is a bug that actually shipped in this repo. Most were invisible to code review and
+> only surfaced when the script was actually run.
 
 ---
 
@@ -148,37 +152,38 @@ Do not hand-assemble directories. Use the scaffolding script:
 ./scripts/new-skill.sh <skill-name> "What it does. Use when ..."
 ```
 
-This copies `templates/skill-template/`, substitutes the name and description,
-`git init`s the folder as its own repository, and makes the initial commit.
+This copies `templates/skill-template/`, substitutes the name and description, and prints
+the remaining steps.
 
 Then:
 
 1. Replace every placeholder in `SKILL.md` — no template text survives into a commit
 2. Delete `references/` or `assets/` if empty; don't ship empty directories
 3. Write the real `README.md`
-4. Validate: `./scripts/validate-skill.sh <skill-name>`
-5. Commit
+4. Validate: `./scripts/validate-skill.sh <skill-name> --strict`
+5. Add a row to the registry table in the root `README.md`
+6. Commit — in **this** repo
 
 ---
 
 ## 5. Git rules
 
-**Each skill folder is an independent repository.** Never add one skill's files to
-another's repo, and never add a skill's contents to the root repo.
+**One repository holds everything.** Skills are ordinary directories tracked in this repo.
+There is no separate git repo per skill.
 
 ```bash
-git -C <skill-name> add -A
-git -C <skill-name> commit -m "feat(<skill-name>): ..."
+git add -A
+git commit -m "feat(<skill-name>): ..."
 ```
 
-The root repo tracks only meta files — `AGENTS.md`, `README.md`, `.gitignore`,
-`templates/`, `scripts/`. Skill folders are excluded via an allowlist `.gitignore`,
-so new folders need no config.
-
 - One logical change per commit. Never mix two skills in one commit.
-- Commit inside the skill's repo, not the root repo.
+- Never create a nested git repo inside a skill folder — it breaks skill discovery and
+  confuses tooling. `.gitignore` has a `**/.git` guard for this.
 - Never commit secrets, `.env` files, or credentials.
-- End the task with the skill's changes committed.
+- End the task with the changes committed.
+- Skill folders live at the repo root because that is where the `npx skills` CLI looks for
+  them. After any layout change, confirm discovery still works:
+  `npx skills add ./ --list`
 
 ---
 
@@ -187,12 +192,15 @@ so new folders need no config.
 Run before every commit:
 
 ```bash
-./scripts/validate-skill.sh <skill-name>
+./scripts/validate-skill.sh <skill-name> --strict
 ```
 
 Checks `name` format and folder match, `description` presence and length, allowed
-frontmatter keys, required files, and reserved names. With the official validator installed it
-also runs the official validator:
+frontmatter keys, required files, reserved names, leftover `TODO` text, and possible
+secrets. `--strict` makes template leftovers fatal.
+
+The official validator is worth running too. Note the executable is `agentskills`, not
+`skills-ref`:
 
 ```bash
 uvx --from skills-ref agentskills validate ./<skill-name>
@@ -202,28 +210,30 @@ uvx --from skills-ref agentskills validate ./<skill-name>
 
 ## 7. Installation
 
-Each skill is self-contained. Three supported paths:
+Skills install individually from this repo.
 
-**Local symlink** (live editing, this machine):
+**One skill from GitHub:**
+
+```bash
+npx skills add mwasobaddy/skills --skill <skill-name>
+```
+
+**Browse or install everything:**
+
+```bash
+npx skills add mwasobaddy/skills --list
+npx skills add mwasobaddy/skills --skill '*'
+```
+
+**Local symlink** (live editing on this machine):
 
 ```bash
 ./scripts/install.sh <skill-name>          # symlink into agent skill dirs
 ./scripts/install.sh --all
 ```
 
-**From GitHub** (shareable, any machine):
-
-```bash
-npx skills add owner/repo
-```
-
-**Manual clone**:
-
-```bash
-git clone <repo-url> ~/.claude/skills/<skill-name>
-```
-
-Every skill's `README.md` documents the exact install command for its own repo.
+That symlinks into `~/.claude/skills`, `~/.config/opencode/skills`, `~/.agents/skills` and
+`~/.codex/skills`. Edits take effect immediately.
 
 ---
 
@@ -236,5 +246,5 @@ Every skill's `README.md` documents the exact install command for its own repo.
 5. Content must be specific to a domain, not generic advice.
 6. Ground skills in real expertise and real execution, not plausible-sounding prose.
 7. Validate before committing.
-8. Each skill folder is its own git repo. Commit inside it.
-9. Never commit secrets.
+8. One repo, skills tracked directly at the root, never nested repos.
+9. Never commit secrets, and never ship a placeholder author.

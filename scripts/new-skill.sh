@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Scaffolds a new skill folder as its own git repository.
+# Scaffolds a new skill folder. Skills live in this single repository — there is
+# no separate git repo per skill.
 #
 # Usage: ./scripts/new-skill.sh <skill-name> "description ..."
 set -euo pipefail
@@ -42,21 +43,20 @@ sed -i '' "s|^description: TODO.*$|description: ${ESCAPED_DESC}|" "$TARGET/SKILL
 sed -i '' "s|^# Skill Name$|# ${ESCAPED_NAME}|" "$TARGET/SKILL.md"
 sed -i '' "s|skill-name|${ESCAPED_NAME}|g" "$TARGET/README.md"
 
-# Each skill is an independent repository.
-git -C "$TARGET" init -q
-git -C "$TARGET" add -A
-git -C "$TARGET" commit -q -m "chore(${ESCAPED_NAME}): scaffold from template"
-
 cat <<EOF
 
-Created $TARGET as an independent git repo.
+Created $TARGET.
 
 Next:
   1. Replace every TODO in SKILL.md — template text must not survive into a commit.
   2. Delete references/ if the skill has nothing to defer.
   3. Write the real README.md.
-  4. $ROOT/scripts/validate-skill.sh ${ESCAPED_NAME}
-  5. git -C ${ESCAPED_NAME} commit -am "feat(${ESCAPED_NAME}): <what it does>"
-  6. Add a row to the registry table in the root README.md.
+  4. $ROOT/scripts/validate-skill.sh ${ESCAPED_NAME} --strict
+  5. git -C "$ROOT" add -A
+  6. git -C "$ROOT" commit -m "feat(${ESCAPED_NAME}): <what it does>"
+  7. Add a row to the registry table in the root README.md.
+
+Install it with:
+  npx skills add mwasobaddy/skills --skill ${ESCAPED_NAME}
 
 EOF

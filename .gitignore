@@ -1,18 +1,19 @@
-# Meta files only. Every skill folder is its own git repository.
-# Ignore everything at root by default, then allowlist the meta files.
-/*
+# This repo tracks skill folders directly. Do not ignore skill directories —
+# `npx skills add mwasobaddy/skills` discovers them from the repo root, so they
+# have to be committed here.
 
-!/AGENTS.md
-!/README.md
-!/.gitignore
-!/templates/
-!/scripts/
-
-# Never commit secrets, anywhere.
+# Never commit secrets, anywhere in the tree.
 .env
 .env.*
 *.key
 *.pem
 
+# Nested repos would break discovery and confuse tooling.
+**/.git
+
 # OS noise
 .DS_Store
+
+# Never commit local eval output (regenerate with scripts/run-trigger-eval.sh).
+**/evals/*.report.json
+**/evals/last-run*.json

@@ -35,15 +35,15 @@ projects.
 ## Install
 
 ```bash
-# Symlink into place on this machine
-../../scripts/install.sh nextjs-i18n
+# From GitHub
+npx skills add mwasobaddy/skills --skill nextjs-i18n
 
-# Or clone directly
-git clone <repo-url> ~/.claude/skills/nextjs-i18n
+# Symlink into place on this machine, for live editing
+../scripts/install.sh nextjs-i18n
 ```
 
 Requires `bash` and the usual POSIX tools. `scripts/find-untranslated.sh` needs nothing
-extra.
+extra. The eval runner also needs `jq` and the agent CLI you want to test against.
 
 ## Contents
 
