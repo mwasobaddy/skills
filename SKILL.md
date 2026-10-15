@@ -170,3 +170,31 @@ Read these on demand, not upfront:
 
 - `scripts/find-untranslated.sh` — flags likely-hardcoded user-facing strings in a project so
   you can size the work before starting. Run it as step 1 of a retrofit.
+- `scripts/run-trigger-eval.sh` — measures whether this skill's `description` fires on the
+  right prompts. Use it when changing the description.
+
+### Testing the description
+
+The `description` is the only thing the agent sees before deciding to load this skill. If it
+fails to fire, nothing below matters.
+
+```bash
+bash scripts/run-trigger-eval.sh --dry-run          # show the plan, no API calls
+bash scripts/run-trigger-eval.sh --split train     # 12 queries x 3 runs
+bash scripts/run-trigger-eval.sh --split validation --out report.json
+```
+
+Query set: `evals/trigger-queries.json` — 12 should-trigger, 8 should-not-trigger, split
+60/40 into a fixed train and validation set.
+
+When editing the description:
+
+- Fix failures using the **train** set only. Touch the validation set once at the end to check
+  the change generalizes — if train improves and validation drops, you overfit.
+- Should-trigger failures mean the description is too narrow: add the *concept* the query
+  represents, never the query's keywords.
+- Should-not-trigger failures mean it is too broad: say what the skill does not cover.
+- Re-run before editing. Triggering is nondeterministic, and one run proves nothing.
+
+Do not add keywords from a failing query — that is how descriptions end up looking like a
+keyword list and stop matching real prompts.

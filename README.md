@@ -54,6 +54,8 @@ extra.
 - `references/seo.md` — hreflang, canonical, sitemap, locale switcher, verification
 - `references/migration.md` — the retrofit sequence, redirects, rollback
 - `scripts/find-untranslated.sh` — size a retrofit before starting
+- `evals/trigger-queries.json` + `scripts/run-trigger-eval.sh` — measure whether this skill
+  fires on the right prompts
 
 ## Script usage
 
@@ -64,6 +66,21 @@ bash scripts/find-untranslated.sh --json src/   # machine-readable
 
 Exits non-zero while candidates remain, so it drops into CI or a pre-commit hook. Heuristic,
 not a compiler — it errs toward recall and expects a human pass.
+
+### Trigger eval
+
+```bash
+bash scripts/run-trigger-eval.sh --dry-run                 # plan only, no API calls
+bash scripts/run-trigger-eval.sh --split train            # 12 queries x 3 runs
+bash scripts/run-trigger-eval.sh --split validation --out report.json
+```
+
+Requires `jq` and the agent CLI under test (`claude` by default, or `--client opencode`).
+Any other client works via `--detector-cmd`, which receives raw agent output on stdin and
+exits 0 when the skill was consulted.
+
+Run it whenever you change the `description`. The query set is split 60/40 into a fixed
+train/validation pair — optimize on train, then check validation for overfitting.
 
 ## Versions
 
