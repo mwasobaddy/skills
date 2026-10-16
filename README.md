@@ -42,12 +42,17 @@ Add `-g` for a global install, or `-a claude-code` to target specific agents.
 Locally, symlinking the folder so edits take effect immediately:
 
 ```bash
-./scripts/install.sh nextjs-i18n    # one skill
-./scripts/install.sh --all          # every skill
+./scripts/install.sh                  # interactive picker, detected agents pre-checked
+./scripts/install.sh nextjs-i18n      # a specific skill
+./scripts/install.sh --all            # every skill, same agents
+./scripts/install.sh --list           # agents this machine has, and where they read skills
+./scripts/install.sh --agents claude-code,opencode   # non-interactive
 ```
 
-That symlinks into `~/.claude/skills`, `~/.config/opencode/skills`, `~/.agents/skills` and
-`~/.codex/skills`.
+`install.sh` links straight at this repo, so edits are live with no reinstall. Paths are
+transcribed from the `npx skills` CLI so both installers agree. Use `npx … -g` to verify the
+public install path; use `install.sh` for development — the two write different targets and
+will overwrite each other.
 
 ## Create a skill
 

@@ -82,6 +82,52 @@ run_client() {
 Then assert the loop covered everything: compare the printed progress count against the
 query count, and fail loudly on a mismatch.
 
+## 4b. A function called in `$(...)` must not print UI to stdout
+
+**What happened.** The agent picker in `install.sh` was called as
+`read -r -a SELECTED <<< "$(choose_agents)"`. The function printed its numbered menu to
+stdout *and* the final selection. Command substitution captured both, the menu's leading
+blank line became the first line, and the selection parsed as empty — the script exited with
+"no agents selected" while the user saw no menu at all, because stdout was captured rather
+than displayed.
+
+**Rule.** Anything invoked in a command substitution writes its result to stdout and
+everything else to stderr. An interactive prompt that a caller captures is invisible by
+construction:
+
+```bash
+{
+  printf 'menu\n'
+  printf '  [x] 1 Claude Code\n'
+  printf 'Selection: '
+} >&2
+printf '%s\n' "$selected_ids"      # stdout carries only the answer
+```
+
+## 4c. Never guess an install path — read it from the tool
+
+**What happened.** `install.sh` wrote Codex skills to `~/.codex/skills`. The `npx skills`
+CLI actually puts them in `~/.agents/skills`; `~/.codex` is only used to *detect* that Codex
+is installed. The script created a directory no agent reads, and a user following it would
+have concluded Codex "doesn't support skills."
+
+**Rule.** Transcribe paths from the tool that defines them, and record where you got them:
+
+```bash
+# paths come from the npx skills CLI agent registry
+# codex globalSkillsDir = join(home, ".agents", "skills")
+# codex detectInstalled = existsSync(join(home, ".codex"))   <- detection only
+```
+
+Two more traps from the same source:
+
+- **Several agents share one directory.** `codex`, `universal`, `amp` and `cline` all use
+  `~/.agents/skills`. Deduplicate targets before linking, or you write the same symlink four
+  times and report it as four successes.
+- **A "detected" directory may be an installer's residue.** `npx skills add -g` creates an
+  empty `<agent>/skills/` for every agent it touches, so bare `-e` detection then reports
+  ~16 agents as installed. Require an entry other than `skills/` before counting an agent.
+
 ## 5. macOS `find -regex` is BRE — no alternation
 
 **What happened.** `find . -regex ".*\.\(tsx|jsx|ts\)$"` matched nothing on macOS. BSD
@@ -223,4 +269,6 @@ Before committing any script or harness in this repo:
 - [ ] Any loop-invoked command redirects stdin
 - [ ] Grepped for the old value of anything you changed
 - [ ] Every command in the docs was executed verbatim
+- [ ] Any function called via `$(...)` prints UI to stderr, results to stdout
+- [ ] Install paths transcribed from the tool that defines them, not guessed
 - [ ] No `TODO`, no placeholder author, no inferred identity

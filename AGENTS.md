@@ -228,12 +228,15 @@ npx skills add mwasobaddy/skills --skill '*'
 **Local symlink** (live editing on this machine):
 
 ```bash
-./scripts/install.sh <skill-name>          # symlink into agent skill dirs
-./scripts/install.sh --all
+./scripts/install.sh                  # interactive agent picker
+./scripts/install.sh --list           # agents detected here, and their skill dirs
+./scripts/install.sh --agents claude-code,opencode
+./scripts/install.sh <skill-name>
 ```
 
-That symlinks into `~/.claude/skills`, `~/.config/opencode/skills`, `~/.agents/skills` and
-`~/.codex/skills`. Edits take effect immediately.
+`install.sh` links directly at this repo, so edits need no reinstall. It picks only from
+agents detected on the machine and pre-checks them. Agent paths come from the `npx skills`
+CLI — note Codex reads `~/.agents/skills`, not `~/.codex/skills`.
 
 ---
 
