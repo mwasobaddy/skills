@@ -4,6 +4,7 @@
 # Usage:
 #   ./scripts/install.sh                     # interactive agent picker
 #   ./scripts/install.sh --agents claude-code,opencode
+#   ./scripts/install.sh --agents "claude-code opencode"
 #   ./scripts/install.sh <skill-name>
 #   ./scripts/install.sh --all
 #   ./scripts/install.sh --list              # agents and where they read skills from
@@ -213,7 +214,7 @@ while [ $# -gt 0 ]; do
       done
       exit 0
       ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^#\{0,1\} \{0,1\}//'; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^#[[:space:]]?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     -*) die "unknown option: $1" ;;
     *)  TARGET="$1"; shift ;;
   esac
@@ -233,7 +234,9 @@ else
 fi
 
 if [ -n "$AGENTS_ARG" ]; then
-  IFS=',' read -r -a SELECTED <<< "$AGENTS_ARG"
+  # Accept commas or spaces. `npx skills add` requires a repeated -a flag per agent and
+  # rejects a comma list outright, so both spellings turn up in practice.
+  read -r -a SELECTED <<< "$(printf '%s' "$AGENTS_ARG" | tr ',' ' ')"
 else
   read -r -a SELECTED <<< "$(choose_agents)"
 fi

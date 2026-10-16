@@ -145,6 +145,30 @@ find "$dir" -type f \( -name '*.tsx' -o -name '*.jsx' -o -name '*.ts' \) -not -p
 rather than found nothing. Test a script against a fixture you know contains hits. A clean
 report from a broken script is the most expensive kind of wrong.
 
+## 5b. Run the command you are about to document
+
+**What happened.** I told the user to select agents with
+`npx skills add … -a claude-code,opencode`. The CLI rejects a comma list outright:
+
+```
+■  Invalid agents: claude-code,opencode
+```
+
+It wants one repeated `-a` flag per agent. I had copied the comma form from `install.sh`,
+which does accept commas, and assumed the two CLIs matched. Two follow-on failures came from
+the same root cause — an unverified example becoming the basis for the next fix.
+
+**Rule.** Run the exact command, in a sandbox, before putting it in an answer or a README.
+For anything that writes outside the repo, redirect the environment instead of trusting
+yourself not to clobber real state:
+
+```bash
+HOME=/tmp/fakehome npx skills add ./ --skill x -g -a claude-code -y
+```
+
+When two tools should behave alike, test both. A working local script is not evidence about
+a third-party CLI's flag grammar.
+
 ## 6. Quoting bugs hide behind `-n` checks that don't run
 
 **What happened.** Twice, embedding a literal quote in shell (`tr -d '"'"'"'`,
@@ -268,7 +292,7 @@ Before committing any script or harness in this repo:
 - [ ] Failure paths tested, not just the happy path
 - [ ] Any loop-invoked command redirects stdin
 - [ ] Grepped for the old value of anything you changed
-- [ ] Every command in the docs was executed verbatim
+- [ ] Every command in the docs was executed verbatim, in a sandboxed HOME if it writes
 - [ ] Any function called via `$(...)` prints UI to stderr, results to stdout
 - [ ] Install paths transcribed from the tool that defines them, not guessed
 - [ ] No `TODO`, no placeholder author, no inferred identity
