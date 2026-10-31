@@ -84,7 +84,7 @@ the skill says so rather than inventing a technical cause for a ranking problem.
 - `references/stacks.md` — where each framework emits head/status/redirect
 - `references/debugging.md` — 11 symptom-driven playbooks
 - `references/head-template.md` — the complete `<head>`, ordering rules, and who consumes each tag
-- `references/audit-rules.md` — all 44 rules, severity, and when to ignore each
+- `references/audit-rules.md` — all 45 rules, severity, and when to ignore each
 - `scripts/seo_audit.py` — the auditor, with `--selftest`
 - `evals/trigger-queries.json` — trigger evaluation set
 

@@ -128,7 +128,35 @@ Two more traps from the same source:
   empty `<agent>/skills/` for every agent it touches, so bare `-e` detection then reports
   ~16 agents as installed. Require an entry other than `skills/` before counting an agent.
 
-## 5. macOS `find -regex` is BRE — no alternation
+## 4d. Never build a site-level URL by appending to a page URL
+
+**What happened.** The auditor took the target as a base and probed `base + "/robots.txt"`. Given
+`https://admin.example.org/admin/users` it fetched `/admin/users/robots.txt`, got a 404, and reported
+"no robots.txt" for a subdomain that serves one. The same bug silently skipped the sitemap. Both
+false positives appeared in a real report.
+
+It had passed testing because I had only run it against bare origins like `https://example.com`,
+where concatenation happens to be correct.
+
+**Rule.** Derive the origin explicitly before building any site-level path:
+
+```python
+parts = urlsplit(target)
+origin = f"{parts.scheme}://{parts.netloc}"
+fetch(origin + "/robots.txt")
+```
+
+Then keep the page the user asked about as a separate *seed*, and audit it too:
+
+```python
+if seed and seed not in targets:
+    targets.insert(0, seed)
+```
+
+Test with a **deep path** (`/a/b/c`) and a bare origin. A run that only ever sees `/` cannot detect
+this class of bug.
+
+
 
 **What happened.** `find . -regex ".*\.\(tsx|jsx|ts\)$"` matched nothing on macOS. BSD
 `find` uses basic regular expressions, where `|` is a literal character. The script printed

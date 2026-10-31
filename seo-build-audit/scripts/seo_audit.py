@@ -225,10 +225,14 @@ def null_reader(url):
 
 
 class Auditor:
-    def __init__(self, base, fetch=null_reader, max_pages=25):
+    def __init__(self, base, fetch=null_reader, max_pages=25, seed=None):
+        # base must be an origin (scheme://host). Passing a full page URL makes every
+        # site-level probe resolve under that path — /admin/users/robots.txt — which
+        # reports a missing robots.txt and sitemap on a site that has both.
         self.base = base.rstrip("/")
         self._fetch = fetch
         self.max_pages = max_pages
+        self.seed = seed or self.base
         self.findings = []
         self.pages = []
 
@@ -265,6 +269,10 @@ class Auditor:
             self.add(INFO, "robots-crawl-delay", "/robots.txt",
                      "crawl-delay present",
                      "Google does not process crawl-delay. Use 503/429 with Retry-After.")
+        if re.search(r"(?im)^\s*host\s*:", body):
+            self.add(INFO, "robots-host-directive", "/robots.txt",
+                     "Host directive present",
+                     "Yandex-specific. Google ignores it; sitemap and canonical cover this.")
         groups = re.split(r"(?im)^\s*user-agent\s*:", body)
         for g in groups[1:]:
             ua = g.split("\n", 1)[0].strip().lower()
@@ -531,6 +539,11 @@ class Auditor:
         self.check_robots()
         sitemap_urls = self.check_sitemap(self.base)
         targets = self.discover(sitemap_urls)
+        # Always audit the URL the user actually asked about, even when the sitemap
+        # doesn't list it or discovery started somewhere else. Directory mode sets
+        # seed to None because it already enumerates every file itself.
+        if self.seed and self.seed not in targets:
+            targets.insert(0, self.seed)
         for u in targets[: self.max_pages]:
             try:
                 self.audit_page(u)
@@ -545,8 +558,8 @@ class Auditor:
                      if urlsplit(u).netloc == urlsplit(self.base).netloc]
         if same_host:
             return same_host
-        # fall back to crawling internal links from the base
-        seen, queue, out = {self.base}, [self.base], [self.base]
+        # fall back to crawling internal links from the seed page
+        seen, queue, out = {self.seed}, [self.seed], [self.seed]
         while queue and len(out) < self.max_pages:
             url = queue.pop(0)
             r = self.get(url)
@@ -570,6 +583,7 @@ class DirAuditor(Auditor):
     def __init__(self, root, base_url, max_pages=25):
         super().__init__(base_url, max_pages=max_pages)
         self.root = os.path.abspath(root)
+        self.seed = None  # discover() walks the tree; no seed page to force
 
     def _path(self, url):
         path = urlsplit(url).path or "/"
@@ -747,7 +761,9 @@ def main():
 
     t = args.target
     if t.startswith(("http://", "https://")):
-        auditor = Auditor(t, http_get, args.max_pages)
+        parts = urlsplit(t)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        auditor = Auditor(origin, http_get, args.max_pages, seed=t)
     else:
         if not os.path.isdir(t):
             ap.error(f"not a directory: {t}")

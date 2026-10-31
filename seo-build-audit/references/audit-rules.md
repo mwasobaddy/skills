@@ -1,6 +1,6 @@
 # Audit rule reference
 
-Every finding `scripts/seo_audit.py` can emit (44 rules), what it means, and when it is safe to
+Every finding `scripts/seo_audit.py` can emit (45 rules), what it means, and when it is safe to
 ignore.
 
 **Scoring:** `100 - (8 × errors) - (2 × warnings)`, floored at 0. Info findings never affect the
@@ -70,6 +70,7 @@ Observations, not defects. Several exist precisely to stop you adding markup tha
 | `meta-keywords` | `meta keywords` present | Safe to delete; Google ignores it entirely |
 | `rel-next-prev` | `rel=next`/`prev` present | Safe to delete; Google ignores them |
 | `robots-crawl-delay` | `crawl-delay` in robots.txt | Delete it; Google does not process it |
+| `robots-host-directive` | `Host:` in robots.txt | Delete it or ignore it; Yandex-only, Google ignores it |
 | `sitemap-ignored-tags` | `<priority>`/`<changefreq>` in sitemap | Delete them; both are ignored |
 | `og-title-missing` | No `og:title` | Add it — Google reads it as a title-link source |
 | `og-image-missing` | No `og:image` | Add one — link previews, and a Google image signal |
