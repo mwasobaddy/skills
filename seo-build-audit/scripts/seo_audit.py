@@ -31,6 +31,34 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
 
 ERROR, WARN, INFO = "error", "warn", "info"
 
+# Structured data types Google has retired. Markup for these renders no rich result,
+# so finding it is more useful than finding nothing.
+RETIRED_TYPES = {
+    "FAQPage", "HowTo", "CourseInfo", "CriticReview", "EstimatedSalary",
+    "HomeActivities", "JobTraining", "LearningVideo", "PracticeProblems",
+    "SitelinksSearchBox", "SpecialAnnouncement", "VehicleListing",
+}
+
+# Required properties per type, from each feature's own documentation page. Types not
+# listed here are either overview pages that delegate, or have no required properties.
+REQUIRED_PROPS = {
+    "BreadcrumbList": ["itemListElement"],
+    "Product": ["name"],
+    "ProductGroup": ["name"],
+    "Recipe": ["name"],
+    "Event": ["startDate"],
+    "JobPosting": ["datePosted", "description", "hiringOrganization", "jobLocation", "title"],
+    "LocalBusiness": ["address", "name"],
+    "VideoObject": ["name", "thumbnailUrl", "uploadDate"],
+    "Review": ["author"],
+    "WebSite": ["name", "url"],
+    "Organization": [],
+    "Article": [],
+}
+
+# Region codes that look plausible but are not assigned in ISO 3166-1 Alpha 2.
+BAD_REGIONS = {"uk", "eu", "un", "dd", "zr", "an", "cs", "su"}
+
 
 # --------------------------------------------------------------------------- fetch
 class Response:
@@ -333,6 +361,20 @@ class Auditor:
                      "Serve HTTPS; it is a canonicalization signal and required for most features.")
 
     # ---- page level
+    @staticmethod
+    def _nodes(data):
+        """Flatten a JSON-LD document into its top-level nodes, including @graph."""
+        out = []
+        items = data if isinstance(data, list) else [data]
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            out.append(it)
+            graph = it.get("@graph")
+            if isinstance(graph, list):
+                out.extend(x for x in graph if isinstance(x, dict))
+        return out
+
     def _check_ldjson(self, L, p):
         for i, block in enumerate(p.ldjson):
             if not block:
@@ -344,20 +386,59 @@ class Auditor:
                          f"JSON-LD block {i + 1} is not valid JSON ({e.msg} at char {e.pos})",
                          "Validate with the Rich Results Test; broken JSON is discarded entirely.")
                 continue
-            items = data if isinstance(data, list) else [data]
-            for item in items:
-                if isinstance(item, dict):
-                    if "@graph" in item:
-                        item = item["@graph"][0] if item["@graph"] else {}
-                    if not item.get("@type"):
-                        self.add(WARN, "ldjson-no-type", L,
-                                 "JSON-LD block has no @type",
-                                 "Every structured data node needs @type.")
+            for item in self._nodes(data):
+                t = item.get("@type")
+                if not t:
+                    self.add(WARN, "ldjson-no-type", L,
+                             "JSON-LD block has no @type",
+                             "Every structured data node needs @type.")
+                    continue
+                for ty in (t if isinstance(t, list) else [t]):
+                    if not isinstance(ty, str):
+                        continue
+                    if ty in RETIRED_TYPES:
+                        self.add(WARN, "ldjson-retired-type", L,
+                                 f"{ty} markup present, but that rich result was retired",
+                                 "No markup will bring it back. Keep it only for other consumers, "
+                                 "or remove it.")
+                    req = REQUIRED_PROPS.get(ty)
+                    if req:
+                        missing = [k for k in req if k not in item]
+                        if missing:
+                            self.add(WARN, "ldjson-missing-required", L,
+                                     f"{ty} missing required: {', '.join(missing)}",
+                                     "A missing required property makes the item ineligible.")
+
+    def _check_hreflang_code(self, L, code):
+        c = code.strip()
+        if c.lower() == "x-default":
+            return
+        parts = [x for x in c.split("-") if x]
+        if not parts or not re.fullmatch(r"[A-Za-z]{2}", parts[0]):
+            self.add(WARN, "hreflang-invalid-code", L,
+                     f"hreflang={code} has no two-letter language subtag",
+                     "The first subtag must be an ISO 639-1 language code.")
+            return
+        if len(parts) > 1:
+            second = parts[1]
+            if re.fullmatch(r"[A-Za-z]{4}", second):
+                return  # ISO 15924 script subtag, e.g. zh-Hant
+            if not re.fullmatch(r"[A-Za-z]{2}", second):
+                self.add(WARN, "hreflang-invalid-code", L,
+                         f"hreflang={code} has an invalid second subtag",
+                         "Use a two-letter ISO 3166-1 Alpha 2 region, or a script subtag.")
+            elif second.lower() in BAD_REGIONS:
+                self.add(WARN, "hreflang-invalid-code", L,
+                         f"hreflang={code}: '{second}' is not an assigned region code",
+                         "UK/EU/UN are unassigned and silently ignored. Use GB for the UK.")
 
     def audit_page(self, url):
         r = self.get(url)
         p = parse_html(r.body, r.headers.get("content-type", ""))
-        entry = {"url": url, "status": r.status, "redirects": r.redirects,
+        # Identity after redirects. Comparing against the requested URL makes every
+        # canonical look wrong when the audit starts on a host that redirects.
+        final_url = (r.effective or url).rstrip("/")
+        entry = {"url": url, "final": final_url, "status": r.status, "redirects": r.redirects,
                  "title": (p.title or "").strip(),
                  "desc": next((d.strip() for d in p.descriptions if d.strip()), ""),
                  "canonicals": p.canonicals,
@@ -427,7 +508,7 @@ class Auditor:
             if not c.startswith(("http://", "https://")):
                 self.add(WARN, "canonical-relative", L, "canonical is a relative URL",
                          "Use an absolute URL so it cannot be resolved against the wrong host.")
-            elif c.rstrip("/") != url.rstrip("/"):
+            elif c.rstrip("/") != final_url:
                 self.add(INFO, "canonical-not-self", L, f"canonical points to {c}",
                          "Fine when intentional. Confirm it matches the URL you want indexed.")
         else:
@@ -466,6 +547,7 @@ class Auditor:
                     self.add(ERROR, "hreflang-relative", L,
                              f"hreflang={code} uses a relative URL",
                              "Alternate URLs must be fully qualified with the scheme.")
+                self._check_hreflang_code(L, code)
             if not any(c.lower() == "x-default" for c, _ in p.hreflangs):
                 self.add(INFO, "hreflang-no-x-default", L,
                          "hreflang set has no x-default",
@@ -490,6 +572,26 @@ class Auditor:
                      "Google uses it for the favicon in results. Square, at least 8x8.")
 
         return entry
+
+    def check_canonical_targets(self, audited):
+        """A canonical pointing at a dead URL consolidates into nothing."""
+        checked = set()
+        for p in self.pages:
+            if not p.get("canonicals") or p.get("excluded"):
+                continue
+            c = p["canonicals"][0].rstrip("/")
+            if not c.startswith(("http://", "https://")) or c in checked:
+                continue
+            checked.add(c)
+            if len(checked) > 10:
+                break
+            if c in audited or c == (p.get("final") or "").rstrip("/"):
+                continue
+            r = self.get(c)
+            if r.status == 0 or r.status >= 400:
+                self.add(ERROR, "canonical-target-error", loc(p["url"]),
+                         f"canonical target is not reachable ({r.status or 'no response'}): {c}",
+                         "Fix the target or the canonical. Consolidating into a broken URL loses the page.")
 
     # ---- cross-page
     def check_duplicates(self):
@@ -544,11 +646,23 @@ class Auditor:
         # seed to None because it already enumerates every file itself.
         if self.seed and self.seed not in targets:
             targets.insert(0, self.seed)
+        audited = {}
         for u in targets[: self.max_pages]:
+            mark = len(self.findings)
             try:
-                self.audit_page(u)
+                entry = self.audit_page(u)
             except Exception as e:  # never let one page kill the run
                 self.add(WARN, "page-error", loc(u), f"could not audit: {e}", "")
+                continue
+            # The same page can be reachable at several hosts. Audit it once, by the
+            # URL it actually resolves to, or every alias looks like a duplicate.
+            key = entry.get("final") or u
+            if key in audited:
+                del self.findings[mark:]
+                self.pages.pop()
+                continue
+            audited[key] = u
+        self.check_canonical_targets(audited)
         self.check_duplicates()
         self.check_hreflang_reciprocity()
         return self.findings
@@ -668,6 +782,22 @@ BAD_PAGE = """<!doctype html><html><head>
 </head><body><h1>x</h1><h1>y</h1><img src="a.png"><img src="b.png">
 <a href="/clean">c</a></body></html>"""
 
+# A page carrying markup Google has retired, plus an unassigned region code.
+RETIRED_PAGE = """<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Frequently asked questions</title>
+<meta name="description" content="Answers to common questions.">
+<link rel="canonical" href="https://example.com/retired">
+<link rel="alternate" hreflang="en-UK" href="https://example.com/retired">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[]}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[{"@type":"Recipe"}]}
+</script>
+</head><body><h1>Questions</h1></body></html>"""
+
 CLEAN_PAGE = """<!doctype html><html lang="en"><head>
 <meta charset="utf-8">
 <title>Shipping a Widget</title>
@@ -696,6 +826,7 @@ def selftest():
         open(os.path.join(td, "index.html"), "w").write(BAD_PAGE)
         open(os.path.join(td, "clean.html"), "w").write(CLEAN_PAGE)
         open(os.path.join(td, "admin.html"), "w").write(ADMIN_PAGE)
+        open(os.path.join(td, "retired.html"), "w").write(RETIRED_PAGE)
         a = DirAuditor(td, "https://example.com", 10)
         findings = a.run()
 
@@ -719,6 +850,15 @@ def selftest():
         ok = True
         if missing:
             print(f"FAIL: checks did not fire: {sorted(missing)}")
+            ok = False
+
+        # Retired-type detection, required-property gaps, and unassigned region codes.
+        retired_rules = {f.rule for f in findings if f.page == "/retired.html"}
+        must_fire_retired = {"ldjson-retired-type", "ldjson-missing-required",
+                             "hreflang-invalid-code"}
+        if must_fire_retired - retired_rules:
+            print(f"FAIL: retired/invalid markup not caught: "
+                  f"{sorted(must_fire_retired - retired_rules)}")
             ok = False
         if bad_positive:
             print(f"FAIL: false positive on clean page: {sorted(bad_positive)}")

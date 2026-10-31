@@ -72,6 +72,10 @@ image alt text, robots.txt, and the sitemap. Duplicate titles and descriptions a
 the crawled set, and pages that are deliberately `noindex` are classified as excluded rather than
 nagged for metadata they don't need.
 
+It also catches the two failures most tools miss: **markup for a rich result Google retired**
+(`FAQPage`, `HowTo`, and ten others), and **missing required properties** for the type you used. Plus
+hreflang subtag validation, and canonical URLs that don't resolve.
+
 Exit code is `1` when an error exists, `0` otherwise, so it works directly in CI.
 
 **A clean audit means the page is eligible, not that it will rank.** Relevance is out of scope, and
@@ -84,7 +88,7 @@ the skill says so rather than inventing a technical cause for a ranking problem.
 - `references/stacks.md` — where each framework emits head/status/redirect
 - `references/debugging.md` — 11 symptom-driven playbooks
 - `references/head-template.md` — the complete `<head>`, ordering rules, and who consumes each tag
-- `references/audit-rules.md` — all 45 rules, severity, and when to ignore each
+- `references/audit-rules.md` — all 49 rules, severity, and when to ignore each
 - `scripts/seo_audit.py` — the auditor, with `--selftest`
 - `evals/trigger-queries.json` — trigger evaluation set
 

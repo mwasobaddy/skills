@@ -1,6 +1,6 @@
 # Audit rule reference
 
-Every finding `scripts/seo_audit.py` can emit (45 rules), what it means, and when it is safe to
+Every finding `scripts/seo_audit.py` can emit (49 rules), what it means, and when it is safe to
 ignore.
 
 **Scoring:** `100 - (8 × errors) - (2 × warnings)`, floored at 0. Info findings never affect the
@@ -32,6 +32,7 @@ several info rules fire because the thing is *ignored by Google*, so don't "fix"
 | `robots-too-large` | robots.txt exceeds 500 KiB | Never — content past the cap is ignored |
 | `sitemap-relative-urls` | `<loc>` entries aren't absolute | Never |
 | `sitemap-too-large` | More than 50,000 URLs in one file | Never — split with a sitemap index |
+| `canonical-target-error` | The canonical URL itself returns `4xx`/`5xx` | Never — you are consolidating into nothing |
 
 ## Warnings
 
@@ -49,6 +50,9 @@ several info rules fire because the thing is *ignored by Google*, so don't "fix"
 | `lang-missing` | `<html>` has no `lang` | Never really; accessibility first, SEO second |
 | `hreflang-not-reciprocal` | A variant doesn't link back | Only if the target wasn't crawled — unknown targets are skipped |
 | `ldjson-no-type` | JSON-LD node has no `@type` | Never |
+| `ldjson-retired-type` | Markup for a rich result Google retired (`FAQPage`, `HowTo`, `SitelinksSearchBox`, …) | Harmless but earns nothing — remove it or keep it for other consumers |
+| `ldjson-missing-required` | A required property is missing for that type | Never — the item becomes ineligible |
+| `hreflang-invalid-code` | Language or region subtag isn't valid ISO 639-1 / 3166-1 | Never — Google silently ignores that subtag |
 | `redirect-chain` | More than one hop to resolve | Behind a host-level redirect you don't control |
 | `robots-missing` | No robots.txt | Acceptable on tiny sites; you lose crawl control and sitemap discovery |
 | `robots-unreachable` | robots.txt couldn't be fetched | Network blip — re-run before acting |
@@ -100,10 +104,17 @@ State these when reporting, so a clean run isn't over-trusted:
 
 - It checks the **served HTML**, not Google's rendered result. Use URL Inspection for that view.
 - It does not execute JavaScript — which is why it is a faithful proxy for what a crawler receives.
+- **It does not measure performance.** No LCP, INP, or CLS. Use PageSpeed Insights or CrUX for those.
+- **It does not check links.** Internal links are parsed for discovery, but broken-link status is not
+  verified. A link checker or a crawler like Screaming Frog covers that.
+- **Soft 404s are not detected.** A "not found" page returning `200` looks like a normal page to it.
+  Check with `curl -o /dev/null -w '%{http_code}' <a-url-that-should-not-exist>`.
 - `hreflang-not-reciprocal` only fires between pages it actually crawled; missing targets are
   skipped rather than guessed.
 - It cannot see Search Console data: indexation status, manual actions, crawl stats, impressions. A
   clean audit means "eligible", not "indexed".
 - It does not evaluate content quality, relevance, or intent match.
+- Near-duplicate body content is not detected — only exact duplicate titles and descriptions.
+- `og:image` is checked for presence, not for dimensions, format, or reachability.
 - The crawl is capped by `--max-pages` (default 25), so duplicate detection only sees the sample.
   Raise it for a full run: `--max-pages 200`.
