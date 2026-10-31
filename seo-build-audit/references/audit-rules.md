@@ -1,6 +1,6 @@
 # Audit rule reference
 
-Every finding `scripts/seo_audit.py` can emit (58 rules), what it means, and when it is safe to
+Every finding `scripts/seo_audit.py` can emit (59 rules), what it means, and when it is safe to
 ignore.
 
 **Scoring:** `100 - (8 × errors) - (2 × warnings)`, floored at 0. Info findings never affect the
@@ -89,6 +89,7 @@ Observations, not defects. Several exist precisely to stop you adding markup tha
 | `favicon-missing` | No `<link rel="icon">` | Add one — used as the favicon in search results |
 | `hreflang-no-x-default` | hreflang set has no `x-default` | Add one if you have a language selector or fallback |
 | `og-image-small` | `og:image` is below 600×315 | Use ≥1200×630 for large previews |
+| `page-not-in-sitemap` | Indexable page reached by crawling, absent from the sitemap | Intentionally unlisted pages |
 | `cwv-pass` | Core Web Vitals within thresholds | None — this is the good outcome |
 | `cwv-unavailable` | PageSpeed Insights unreachable or quota exceeded | Add `--psi-key`; the anonymous quota is shared |
 

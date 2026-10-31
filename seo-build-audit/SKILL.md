@@ -106,8 +106,12 @@ Run the audit before declaring done. It works on a local build or a deployed URL
 ```bash
 python3 scripts/seo_audit.py ./dist --base-url https://example.com   # during development
 python3 scripts/seo_audit.py https://example.com --max-pages 50      # after deploy
+python3 scripts/seo_audit.py https://example.com --max-pages 0       # every page discovered
 python3 scripts/seo_audit.py https://example.com --json report.json  # machine-readable
 ```
+
+Discovery follows the **sitemap plus internal links**, so pages missing from the sitemap are still
+audited and flagged. `--max-pages` limits pages audited, not links followed; `0` means everything.
 
 Exit code is `1` when any error-severity finding exists, so it drops into CI as-is.
 

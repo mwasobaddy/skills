@@ -271,7 +271,9 @@ class Finding:
 
 
 def loc(url):
-    return urlsplit(url).path or "/"
+    parts = urlsplit(url)
+    path = parts.path or "/"
+    return f"{path}?{parts.query}" if parts.query else path
 
 
 def null_reader(url):
@@ -340,6 +342,12 @@ class Auditor:
         self.pages = []
         self.max_link_checks = 30
         self.status_cache = {}
+        self.discovered = 0
+        self.limit_hit = False
+        # Hosts we treat as internal. The seed's host is added up front; the host it
+        # redirects to is added as soon as we see it, so a bare domain that redirects
+        # to www does not reject its own sitemap.
+        self.allowed_hosts = {urlsplit(self.base).netloc}
 
     def get(self, url):
         return self._fetch(url)
@@ -734,18 +742,40 @@ class Auditor:
             s = shingles(p.get("text", ""))
             if s:
                 sigs.append((p, s))
-        for i in range(len(sigs)):
-            for j in range(i + 1, len(sigs)):
-                a, sa = sigs[i]
-                b, sb = sigs[j]
-                inter = len(sa & sb)
+
+        n = len(sigs)
+        parent = list(range(n))
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                inter = len(sigs[i][1] & sigs[j][1])
                 if not inter:
                     continue
-                if inter / len(sa | sb) >= 0.8:
-                    self.add(WARN, "duplicate-content", loc(a["url"]),
-                             f"~{int(100 * inter / len(sa | sb))}% shared phrasing with "
-                             f"{loc(b['url'])}",
-                             "Near-identical pages compete with each other. Consolidate or differentiate.")
+                if inter / len(sigs[i][1] | sigs[j][1]) >= 0.8:
+                    ri, rj = find(i), find(j)
+                    if ri != rj:
+                        parent[rj] = ri
+
+        # One finding per cluster, not one per pair: five similar pages would
+        # otherwise produce ten findings that all describe the same problem.
+        groups = defaultdict(list)
+        for i in range(n):
+            groups[find(i)].append(i)
+        for idxs in groups.values():
+            if len(idxs) < 2:
+                continue
+            first = sigs[idxs[0]][0]
+            members = [loc(sigs[k][0]["url"]) for k in idxs]
+            self.add(WARN, "duplicate-content", loc(first["url"]),
+                     f"{len(idxs)} near-identical pages: {members[:6]}",
+                     "Consolidate with a canonical or differentiate. Filtered variants of a listing "
+                     "usually need rel=canonical to the unfiltered page, or noindex.")
 
     def check_og_images(self):
         seen = set()
@@ -770,6 +800,23 @@ class Auditor:
                 self.add(INFO, "og-image-small", loc(p["url"]),
                          f"og:image is {dims[0]}x{dims[1]}",
                          "Aim for at least 1200x630 so previews render large.")
+
+    def check_sitemap_coverage(self, sitemap_urls, audited):
+        """Pages reached by crawling but absent from the sitemap."""
+        if not sitemap_urls:
+            return
+        listed = {(urlsplit(u).path.rstrip("/") or "/") for u in sitemap_urls}
+        for p in self.pages:
+            if p.get("excluded") or p["status"] != 200:
+                continue
+            parts = urlsplit(p.get("final") or p["url"])
+            if parts.query:
+                continue  # filter/parameter URLs don't belong in a sitemap
+            path = parts.path.rstrip("/") or "/"
+            if path not in listed:
+                self.add(INFO, "page-not-in-sitemap", path,
+                         "indexable and linked, but not listed in the sitemap",
+                         "Add it if it should be indexed. A sitemap is a hint, not a requirement.")
 
     # ---- cross-page
     def check_duplicates(self):
@@ -819,14 +866,26 @@ class Auditor:
         self.check_robots()
         self.check_soft_404()
         sitemap_urls = self.check_sitemap(self.base)
-        targets = self.discover(sitemap_urls)
-        # Always audit the URL the user actually asked about, even when the sitemap
-        # doesn't list it or discovery started somewhere else. Directory mode sets
-        # seed to None because it already enumerates every file itself.
-        if self.seed and self.seed not in targets:
-            targets.insert(0, self.seed)
+        queue = [self.seed] if self.seed else []
+        # Sitemap entries come from our own sitemap; take them as-is rather than
+        # filtering by the seed's host, which fails whenever the site canonicalises
+        # to www (or any other host) and the sitemap lists that canonical host.
+        for u in sitemap_urls:
+            if u not in queue:
+                queue.append(u)
+        if not queue:
+            queue = self.discover([])
+
+        # max_pages == 0 means "everything discovered". The limit counts pages that
+        # were actually audited, not queue slots — otherwise an alias or a redirect
+        # silently consumes budget and a real page is never reached.
+        limit = self.max_pages if self.max_pages > 0 else None
+        queued = set(queue)
         audited = {}
-        for u in targets[: self.max_pages]:
+        idx = 0
+        while idx < len(queue) and (limit is None or len(audited) < limit):
+            u = queue[idx]
+            idx += 1
             mark = len(self.findings)
             try:
                 entry = self.audit_page(u)
@@ -841,7 +900,30 @@ class Auditor:
                 self.pages.pop()
                 continue
             audited[key] = u
+            self.allowed_hosts.add(urlsplit(key).netloc)
+
+            # Follow internal links found on the page, so pages missing from the
+            # sitemap are still reached. Costs no extra requests: the HTML is cached
+            # from the fetch that just happened.
+            base = entry.get("final") or u
+            for href in entry.get("links", []):
+                if href.startswith(("mailto:", "tel:", "javascript:", "#", "data:")):
+                    continue
+                try:
+                    n = urljoin(base, href).split("#")[0].rstrip("/")
+                except Exception:
+                    continue
+                if urlsplit(n).netloc not in self.allowed_hosts:
+                    continue
+                if n in queued or n in audited:
+                    continue
+                queued.add(n)
+                queue.append(n)
+
+        self.discovered = len(queue)
+        self.limit_hit = bool(limit is not None and idx < len(queue))
         self.check_canonical_targets(audited)
+        self.check_sitemap_coverage(sitemap_urls, audited)
         self.check_internal_links(urlsplit(self.base).netloc)
         self.check_duplicate_content()
         self.check_og_images()
@@ -850,27 +932,9 @@ class Auditor:
         return self.findings
 
     def discover(self, sitemap_urls):
-        same_host = [u for u in sitemap_urls
-                     if urlsplit(u).netloc == urlsplit(self.base).netloc]
-        if same_host:
-            return same_host
-        # fall back to crawling internal links from the seed page
-        seen, queue, out = {self.seed}, [self.seed], [self.seed]
-        while queue and len(out) < self.max_pages:
-            url = queue.pop(0)
-            r = self.get(url)
-            if r.status != 200:
-                continue
-            for href in parse_html(r.body).links:
-                n = urljoin(url, href).split("#")[0]
-                if urlsplit(n).netloc != urlsplit(self.base).netloc:
-                    continue
-                if n in seen or len(out) >= self.max_pages:
-                    continue
-                seen.add(n)
-                out.append(n)
-                queue.append(n)
-        return out
+        """Fallback only. Link-following happens in run() using already-fetched pages."""
+        return [u for u in sitemap_urls
+                if urlsplit(u).netloc == urlsplit(self.base).netloc]
 
 
 class DirAuditor(Auditor):
@@ -918,14 +982,18 @@ class DirAuditor(Auditor):
 
 
 # --------------------------------------------------------------------------- report
-def report(findings, pages, out_json=None):
+def report(findings, pages, out_json=None, discovered=None, limit_hit=False):
     order = {ERROR: 0, WARN: 1, INFO: 2}
     findings = sorted(findings, key=lambda f: (order[f.severity], f.rule, f.page))
     counts = Counter(f.severity for f in findings)
     errors, warns = counts.get(ERROR, 0), counts.get(WARN, 0)
     score = max(0, 100 - 8 * errors - 2 * warns)
 
-    print(f"\npages audited: {len(pages)}")
+    if limit_hit and discovered:
+        print(f"\npages audited: {len(pages)} of {discovered} discovered "
+              f"(--max-pages stopped the crawl; use --max-pages 0 for everything)")
+    else:
+        print(f"\npages audited: {len(pages)}")
     print(f"score: {score}/100   errors: {errors}   warnings: {warns}   info: {counts.get(INFO, 0)}")
 
     if not findings:
@@ -944,6 +1012,7 @@ def report(findings, pages, out_json=None):
 
     if out_json:
         json.dump({"score": score, "pages": len(pages),
+                   "discovered": discovered or len(pages),
                    "counts": dict(counts),
                    "findings": [f.as_dict() for f in findings],
                    "page_details": pages},
@@ -1096,7 +1165,9 @@ def selftest():
                      "hreflang-relative", "img-alt-missing", "meta-keywords",
                      "h1-multiple", "description-missing", "lang-missing",
                      "charset-missing", "viewport-missing"}
-        must_not = {"title-missing", "status-not-200", "canonical-multiple"}
+        # status-not-200 is excluded here: the fixture deliberately links to /broken,
+        # and link-following is expected to reach it and report it.
+        must_not = {"title-missing", "canonical-multiple"}
 
         # The excluded page must be recognised as intentional, not nagged for a
         # missing description, canonical, Open Graph tags, or favicon.
@@ -1171,7 +1242,8 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("target", nargs="?", help="site URL or local directory")
     ap.add_argument("--base-url", help="site URL to use for a local directory")
-    ap.add_argument("--max-pages", type=int, default=25)
+    ap.add_argument("--max-pages", type=int, default=25,
+                    help="pages to audit; 0 audits every page discovered")
     ap.add_argument("--max-link-checks", type=int, default=30,
                     help="internal links to verify; 0 disables")
     ap.add_argument("--psi", action="store_true",
@@ -1209,7 +1281,8 @@ def main():
     findings = auditor.run()
     if args.psi and isinstance(auditor, Auditor) and not isinstance(auditor, DirAuditor):
         findings.extend(psi_findings(auditor.seed or auditor.base, args.psi_key))
-    return report(findings, auditor.pages, args.json)
+    return report(findings, auditor.pages, args.json,
+                  auditor.discovered, auditor.limit_hit)
 
 
 if __name__ == "__main__":

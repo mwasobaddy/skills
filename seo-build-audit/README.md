@@ -69,6 +69,15 @@ python3 scripts/seo_audit.py --selftest
 
 Requires `python3` and `curl`. Directory mode uses no network at all.
 
+**What it crawls.** Discovery is the union of the sitemap and internal links: every
+`sitemap.xml` URL, plus every internal link found on the pages it fetches, followed breadth-first.
+That second half matters — pages missing from the sitemap still get audited, and they are reported
+as `page-not-in-sitemap`. Link-following costs no extra requests because the HTML is already
+cached from the audit fetch.
+
+`--max-pages` caps *pages actually audited* (default 25). Aliases and redirects don't consume the
+budget, so the cap means what it says. Use `--max-pages 0` to audit everything discovered.
+
 Checks status codes, `noindex` (meta and header), titles, descriptions, canonicals, `h1` and `lang`,
 charset, viewport, Open Graph and Twitter tags, favicons, JSON-LD validity, hreflang reciprocity,
 image alt text, robots.txt, and the sitemap. Duplicate titles and descriptions are detected across
@@ -100,7 +109,7 @@ Search Console state and content quality cannot be automated at all — see
 - `references/stacks.md` — where each framework emits head/status/redirect
 - `references/debugging.md` — 11 symptom-driven playbooks
 - `references/head-template.md` — the complete `<head>`, ordering rules, and who consumes each tag
-- `references/audit-rules.md` — all 58 rules, severity, and when to ignore each
+- `references/audit-rules.md` — all 59 rules, severity, and when to ignore each
 - `references/measurement.md` — Core Web Vitals, Search Console, rendered DOM, content quality
 - `scripts/seo_audit.py` — the auditor, with `--selftest`
 - `evals/trigger-queries.json` — trigger evaluation set
