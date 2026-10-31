@@ -100,6 +100,9 @@ class PageParser(HTMLParser):
         self.h1 = 0
         self.h2 = 0
         self.lang = None
+        self.charset = False
+        self.has_favicon = False
+        self.twitter = {}
         self.og = {}
         self.ldjson = []
         self._in_ld = False
@@ -121,6 +124,11 @@ class PageParser(HTMLParser):
             if self.title is None:
                 self.title = ""
         elif tag == "meta":
+            if a.get("charset"):
+                self.charset = True
+            if (a.get("http-equiv") or "").lower() == "content-type" \
+                    and "charset" in (a.get("content") or "").lower():
+                self.charset = True
             name = (a.get("name") or a.get("property") or "").lower()
             content = a.get("content") or ""
             if name == "description":
@@ -133,10 +141,14 @@ class PageParser(HTMLParser):
                 self.has_viewport = True
             elif name.startswith("og:"):
                 self.og[name] = content
+            elif name.startswith("twitter:"):
+                self.twitter[name] = content
         elif tag == "link":
             rel = (a.get("rel") or "").lower()
             if "canonical" in rel:
                 self.canonicals.append(a.get("href") or "")
+            if "icon" in rel:
+                self.has_favicon = True
             if "alternate" in rel and a.get("hreflang"):
                 self.hreflangs.append((a["hreflang"], a.get("href") or ""))
             if rel in ("next", "prev"):
@@ -313,6 +325,27 @@ class Auditor:
                      "Serve HTTPS; it is a canonicalization signal and required for most features.")
 
     # ---- page level
+    def _check_ldjson(self, L, p):
+        for i, block in enumerate(p.ldjson):
+            if not block:
+                continue
+            try:
+                data = json.loads(block)
+            except json.JSONDecodeError as e:
+                self.add(ERROR, "ldjson-invalid", L,
+                         f"JSON-LD block {i + 1} is not valid JSON ({e.msg} at char {e.pos})",
+                         "Validate with the Rich Results Test; broken JSON is discarded entirely.")
+                continue
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                if isinstance(item, dict):
+                    if "@graph" in item:
+                        item = item["@graph"][0] if item["@graph"] else {}
+                    if not item.get("@type"):
+                        self.add(WARN, "ldjson-no-type", L,
+                                 "JSON-LD block has no @type",
+                                 "Every structured data node needs @type.")
+
     def audit_page(self, url):
         r = self.get(url)
         p = parse_html(r.body, r.headers.get("content-type", ""))
@@ -334,9 +367,32 @@ class Auditor:
                      "Keep chains under 3 hops; point links at the final URL.")
 
         robots = " ".join(p.robots).lower() + " " + r.x_robots.lower()
-        if "noindex" in robots or "none" in robots.split():
-            self.add(ERROR, "noindex", L, "page is set to noindex",
-                     "Remove noindex if this page should appear in Search.")
+        excluded = "noindex" in robots or "none" in robots.split()
+        entry["excluded"] = excluded
+
+        # Head hygiene applies to every page, excluded ones included: encoding and mobile
+        # rendering are technical requirements, not ranking concerns.
+        if not p.charset:
+            self.add(WARN, "charset-missing", L, "no <meta charset> in the head",
+                     "Declare it within the first 1024 bytes, or parsers guess the encoding "
+                     "and may garble the rest of the document.")
+        if not p.has_viewport:
+            self.add(WARN, "viewport-missing", L, "no viewport meta tag",
+                     "Its presence is what signals to Google that the page is designed for mobile.")
+
+        if excluded:
+            # An excluded page is a deliberate decision. Missing description, canonical, h1,
+            # Open Graph tags and word count are not defects here — flagging them is the single
+            # biggest source of false positives in SEO audits.
+            self._check_ldjson(L, p)
+            self.add(INFO, "page-excluded", L,
+                     "excluded from indexing by design (noindex)",
+                     "Only technical head hygiene is checked. Confirm the exclusion is intentional.")
+            if p.canonicals:
+                self.add(INFO, "canonical-on-noindex", L,
+                         "canonical present on a noindex page",
+                         "Google ignores it here. Harmless, but it confuses audit tools.")
+            return entry
 
         t = (p.title or "").strip()
         if not t:
@@ -381,25 +437,7 @@ class Auditor:
             self.add(WARN, "lang-missing", L, "<html> has no lang attribute",
                      "Add lang for accessibility. Google infers language from text, not this attribute.")
 
-        for i, block in enumerate(p.ldjson):
-            if not block:
-                continue
-            try:
-                data = json.loads(block)
-            except json.JSONDecodeError as e:
-                self.add(ERROR, "ldjson-invalid", L,
-                         f"JSON-LD block {i + 1} is not valid JSON ({e.msg} at char {e.pos})",
-                         "Validate with the Rich Results Test; broken JSON is discarded entirely.")
-                continue
-            items = data if isinstance(data, list) else [data]
-            for item in items:
-                if isinstance(item, dict):
-                    if "@graph" in item:
-                        item = item["@graph"][0] if item["@graph"] else {}
-                    if not item.get("@type"):
-                        self.add(WARN, "ldjson-no-type", L,
-                                 "JSON-LD block has no @type",
-                                 "Every structured data node needs @type.")
+        self._check_ldjson(L, p)
 
         if p.images_no_alt:
             self.add(WARN, "img-alt-missing", L,
@@ -425,9 +463,23 @@ class Auditor:
                          "hreflang set has no x-default",
                          "Add x-default so unmatched languages land somewhere sensible.")
 
+        # ---- head completion: social and icons
         if not p.og.get("og:image"):
             self.add(INFO, "og-image-missing", L, "no og:image",
-                     "Improves appearance when links are shared.")
+                     "Improves link previews. Google also reads og:image as a preferred "
+                     "image signal for the result thumbnail.")
+        if not p.og.get("og:title"):
+            self.add(INFO, "og-title-missing", L, "no og:title",
+                     "Google reads og:title as one of its title-link sources.")
+        if not p.og.get("og:description"):
+            self.add(INFO, "og-description-missing", L, "no og:description",
+                     "Not used by Google; social platforms use it for link previews.")
+        if not p.twitter.get("twitter:card"):
+            self.add(INFO, "twitter-card-missing", L, "no twitter:card",
+                     "Not used by Google. Affects X/Twitter previews only.")
+        if not p.has_favicon:
+            self.add(INFO, "favicon-missing", L, 'no <link rel="icon">',
+                     "Google uses it for the favicon in results. Square, at least 8x8.")
 
         return entry
 
@@ -436,7 +488,7 @@ class Auditor:
         titles = defaultdict(list)
         descs = defaultdict(list)
         for p in self.pages:
-            if p["status"] != 200:
+            if p["status"] != 200 or p.get("excluded"):
                 continue
             if p["title"]:
                 titles[p["title"].lower()].append(loc(p["url"]))
@@ -603,6 +655,7 @@ BAD_PAGE = """<!doctype html><html><head>
 <a href="/clean">c</a></body></html>"""
 
 CLEAN_PAGE = """<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
 <title>Shipping a Widget</title>
 <meta name="description" content="How to ship a widget safely.">
 <meta name="viewport" content="width=device-width">
@@ -612,20 +665,40 @@ CLEAN_PAGE = """<!doctype html><html lang="en"><head>
 </head><body><h1>Shipping a Widget</h1><img src="a.png" alt="A widget">
 <a href="/broken">b</a></body></html>"""
 
+# The shape of the admin panel in the wild: correctly excluded, and therefore
+# legitimately missing everything a marketing page needs.
+ADMIN_PAGE = """<!doctype html><html lang="en-KE"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users · Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://example.com/">
+</head><body><h1>Users</h1><img src="x.png"><a href="/">home</a></body></html>"""
+
 
 def selftest():
     """Prove the checks fire on a bad page and stay quiet on a good one."""
     with tempfile.TemporaryDirectory() as td:
         open(os.path.join(td, "index.html"), "w").write(BAD_PAGE)
         open(os.path.join(td, "clean.html"), "w").write(CLEAN_PAGE)
+        open(os.path.join(td, "admin.html"), "w").write(ADMIN_PAGE)
         a = DirAuditor(td, "https://example.com", 10)
         findings = a.run()
 
         rules = {f.rule for f in findings}
         must_fire = {"title-long", "canonical-relative", "ldjson-invalid",
                      "hreflang-relative", "img-alt-missing", "meta-keywords",
-                     "h1-multiple", "description-missing", "lang-missing"}
+                     "h1-multiple", "description-missing", "lang-missing",
+                     "charset-missing", "viewport-missing"}
         must_not = {"title-missing", "status-not-200", "canonical-multiple"}
+
+        # The excluded page must be recognised as intentional, not nagged for a
+        # missing description, canonical, Open Graph tags, or favicon.
+        admin_rules = {f.rule for f in findings if f.page == "/admin.html"}
+        must_fire_admin = {"page-excluded", "canonical-on-noindex"}
+        must_not_admin = {"description-missing", "og-title-missing",
+                          "twitter-card-missing", "favicon-missing",
+                          "canonical-missing", "h1-missing"}
 
         missing = must_fire - rules
         bad_positive = must_not & rules
@@ -635,6 +708,12 @@ def selftest():
             ok = False
         if bad_positive:
             print(f"FAIL: false positive on clean page: {sorted(bad_positive)}")
+            ok = False
+        if must_fire_admin - admin_rules:
+            print(f"FAIL: excluded page not recognised: {sorted(must_fire_admin - admin_rules)}")
+            ok = False
+        if must_not_admin & admin_rules:
+            print(f"FAIL: nagged an excluded page about: {sorted(must_not_admin & admin_rules)}")
             ok = False
 
         # the clean page alone must be silent for page-level errors

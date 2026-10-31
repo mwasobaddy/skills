@@ -15,6 +15,7 @@ or a live URL.
   Astro, WordPress, Express, and static hosts.
 - **A real auditor** — crawls a URL or a build directory and reports ranked findings with fixes,
   plus JSON output and a non-zero exit code for CI.
+- **Page intent** — indexable vs excluded vs duplicate vs non-HTML, so an admin panel with `noindex` is recognised as correct instead of flagged
 - **Debugging playbooks** — not indexed, indexed but not ranking, wrong URL ranking, empty cached
   snapshot, traffic drop, lost rich result, soft 404s, redirect chains, sitemap not used,
   post-deploy regression, cannibalization.
@@ -66,8 +67,10 @@ python3 scripts/seo_audit.py --selftest
 Requires `python3` and `curl`. `--dir` mode uses no network at all.
 
 Checks status codes, `noindex` (meta and header), titles, descriptions, canonicals, `h1` and `lang`,
-JSON-LD validity, hreflang reciprocity, image alt text, robots.txt, and the sitemap. Duplicate
-titles and descriptions are detected across the crawled set.
+charset, viewport, Open Graph and Twitter tags, favicons, JSON-LD validity, hreflang reciprocity,
+image alt text, robots.txt, and the sitemap. Duplicate titles and descriptions are detected across
+the crawled set, and pages that are deliberately `noindex` are classified as excluded rather than
+nagged for metadata they don't need.
 
 Exit code is `1` when an error exists, `0` otherwise, so it works directly in CI.
 
@@ -80,7 +83,8 @@ the skill says so rather than inventing a technical cause for a ranking problem.
 - `references/implementation.md` — per-concern implementation with code
 - `references/stacks.md` — where each framework emits head/status/redirect
 - `references/debugging.md` — 11 symptom-driven playbooks
-- `references/audit-rules.md` — all 35 rules, severity, and when to ignore each
+- `references/head-template.md` — the complete `<head>`, ordering rules, and who consumes each tag
+- `references/audit-rules.md` — all 44 rules, severity, and when to ignore each
 - `scripts/seo_audit.py` — the auditor, with `--selftest`
 - `evals/trigger-queries.json` — trigger evaluation set
 

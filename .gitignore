@@ -17,3 +17,6 @@
 # Never commit local eval output (regenerate with scripts/run-trigger-eval.sh).
 **/evals/*.report.json
 **/evals/last-run*.json
+# Python bytecode
+__pycache__/
+*.py[cod]

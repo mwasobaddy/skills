@@ -31,6 +31,22 @@ Each gate blocks the next. Fix them in this order rather than chasing symptoms.
 Gate 4 is where most framework projects actually fail, and it is invisible in the browser because
 you have JavaScript.
 
+## Every URL has an intent
+
+Before applying any rule, decide what the URL is *for*. Most auditing noise comes from judging an
+excluded page against indexable-page criteria.
+
+| Intent | Signals | Rules that apply |
+| --- | --- | --- |
+| **Indexable** | No `noindex`, in the sitemap, linked internally | Everything |
+| **Excluded** | `noindex` / `nofollow`, admin, staging, internal search | Status, charset, viewport, JSON-LD validity. **Not** description, canonical, Open Graph, `h1`, or word count |
+| **Duplicate** | Canonical points elsewhere, or a parameter variant | Canonical correctness and consistency only |
+| **Non-HTML** | PDF, image, video | `X-Robots-Tag` header; meta tags cannot apply |
+
+An admin panel with `noindex, nofollow` is **correct**. A report that flags it for a missing
+description, missing keywords, or a 40-word count is reporting defects that do not exist. Say so
+rather than "fixing" it.
+
 ## Where each thing must be emitted
 
 This is the framework-agnostic rule set. Framework syntax differs; the requirement does not.
@@ -123,6 +139,7 @@ Read only what the task needs.
 
 | File | Read it when |
 | --- | --- |
+| `references/head-template.md` | Writing or reviewing a `<head>` — the full tag set, ordering rules, what Google actually reads, and social/Open Graph |
 | `references/implementation.md` | Writing metadata, canonical, hreflang, redirects, pagination, or JSON-LD for a route |
 | `references/stacks.md` | You need the concrete emission point for Next.js, Rails, Django, Laravel, Astro, WordPress, or static HTML |
 | `references/debugging.md` | Something is broken: not indexed, wrong page ranks, traffic dropped, rich result gone |

@@ -3,6 +3,9 @@
 Framework-neutral. Every snippet below belongs in the **server-rendered** response. If your
 framework can only emit it client-side, that is the bug to fix first.
 
+For the complete `<head>` in canonical order, with a per-tag table of what Google actually reads
+versus ignores, see `head-template.md`. This file covers each concern in depth.
+
 ## Titles
 
 ```html
@@ -28,6 +31,38 @@ framework can only emit it client-side, that is the bug to fix first.
 - Not a ranking factor. It is the snippet fallback when the body doesn't answer the query better.
 - Description text can surface facts the body buries — price, author, date, count.
 - Keyword strings are *less* likely to be selected, not more.
+
+## Charset and viewport
+
+```html
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+```
+
+- `charset` must appear within the **first 1024 bytes**. Later, parsers guess.
+- `viewport` is a technical requirement, not a nicety: its presence is what indicates to Google that
+  the page is built for mobile, and indexing is mobile-first.
+
+## Social and Open Graph
+
+```html
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Acme">
+<meta property="og:title" content="Shipping a Widget | Acme">
+<meta property="og:description" content="How to ship a widget safely.">
+<meta property="og:url" content="https://acme.com/widgets/shipping">
+<meta property="og:image" content="https://acme.com/img/shipping-1200x630.jpg">
+<meta property="og:image:alt" content="A widget in a shipping box">
+<meta name="twitter:card" content="summary_large_image">
+```
+
+- **Google reads `og:title`, `og:site_name`, and `og:image`.** Not for ranking, but as inputs: a
+  title-link source, a site-name source, and a preferred image for the result thumbnail. Keep them
+  consistent with `<title>` and your `WebSite` structured data, or you hand Google three competing
+  candidates.
+- Google ignores `og:description`, `og:url`, `og:type`, `og:locale`, and all `twitter:*` tags. Keep
+  them for social previews, not for Search.
+- Image at least 1200×630 for wide previews. Supply `og:image:alt`.
 
 ## Canonical
 
