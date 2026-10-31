@@ -199,6 +199,42 @@ ran two patterns and each matched. It was only visible after running against a f
 **Rule.** Every check needs a fixture proving it reports, and a second proving it stays
 silent. For finders specifically: hits, no-hits, empty input, and no-arguments.
 
+## 7b. A detector that never fires is indistinguishable from "nothing to detect"
+
+**What happened.** The crawler flagged pages Google has retired by looking for
+
+```python
+'<link rel="canonical" href="https://developers.google.com/search/news"' in html
+```
+
+Fifteen pages in the corpus were retired and redirected. The count came back **0**, and a clean
+"0 retired" reads exactly like a healthy crawl. The canonical actually points at
+`/search/updates`, not `/search/news` — I had guessed the URL from memory instead of reading it.
+
+Every subsequent run would have quietly reported "nothing retired" while the references filled
+with dead features.
+
+**Rule.** For any detector, run it once against an input you *know* is positive and once against
+one you know is negative, and assert both counts:
+
+```bash
+# known-retired page must report retired=1
+python3 scripts/crawl-google-docs.py --out /tmp/a --seed <retired-url> --max-hops 0
+# known-live page must report retired=0
+python3 scripts/crawl-google-docs.py --out /tmp/b --seed <live-url> --max-hops 0
+```
+
+And when the signal is a string from an external service, read it out of a real response first.
+Grep the fetched HTML for the candidate, rather than trusting the shape you remember:
+
+```bash
+grep -o '<link rel="canonical"[^>]*>' html/*.html
+```
+
+A verifier that finds nothing, a linter with no warnings, and a grep with no matches are all
+statements about the *check*, not the artefact. Prove the check can fail before believing it
+passed.
+
 ## 8. Doc and code drift, in both directions
 
 **What happened.** The install script originally wrote to `~/.config/opencode/skill`
@@ -290,6 +326,7 @@ Before committing any script or harness in this repo:
 - [ ] Ran against a fixture that should stay silent
 - [ ] Read real output from the tool being parsed; confirmed the fields exist
 - [ ] Failure paths tested, not just the happy path
+- [ ] Every detector was shown to fire on a known-positive input
 - [ ] Any loop-invoked command redirects stdin
 - [ ] Grepped for the old value of anything you changed
 - [ ] Every command in the docs was executed verbatim, in a sandboxed HOME if it writes
