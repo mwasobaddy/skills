@@ -235,6 +235,33 @@ A verifier that finds nothing, a linter with no warnings, and a grep with no mat
 statements about the *check*, not the artefact. Prove the check can fail before believing it
 passed.
 
+## 7c. A validator that can't detect the failure it exists for
+
+**What happened.** `scripts/validate-skill.sh` reported the new skill as `valid`. The official
+validator rejected it:
+
+```
+- Invalid YAML in frontmatter: mapping values are not allowed here
+  ... ter a deploy. Framework-agnostic: Next.js, Rails, Django ...
+```
+
+The description contained an unquoted `": "`. The local validator read the value with
+`sed -n 's/^description:[[:space:]]*//p'`, which extracts the text perfectly and never parses it
+as YAML. So the one check that exists to catch malformed frontmatter was blind to the most common
+way frontmatter breaks.
+
+**Rule.** A validator must be tested against input it should reject, in the same way a detector
+must be tested against a known positive:
+
+```bash
+# the regression fixture
+printf -- '---\nname: bad\ndescription: Does a thing. Framework-agnostic: Next.js\n---\n' > /tmp/bad.md
+# then assert the check flags it
+```
+
+When a local check and an external check disagree, the external one is the specification. Fix the
+local check so the disagreement cannot recur, rather than fixing only the file that failed.
+
 ## 8. Doc and code drift, in both directions
 
 **What happened.** The install script originally wrote to `~/.config/opencode/skill`

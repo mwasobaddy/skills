@@ -49,6 +49,16 @@ FIRST_LINE="$(head -1 "$SKILL_MD")"
 
 FRONTMATTER="$(awk 'NR==1 && /^---$/ {in_fm=1; next} in_fm && /^---$/ {exit} in_fm' "$SKILL_MD")"
 
+# A top-level value containing ": " must be quoted or the frontmatter is invalid YAML
+# and the official validator will reject the skill. The sed extraction below happily
+# reads such a line, so check the shape explicitly.
+BAD_YAML="$(printf '%s\n' "$FRONTMATTER" \
+  | grep -nE "^[A-Za-z0-9_-]+: [^\"'[:space:]\[{|>].*: " \
+  | cut -d: -f2- | sed 's/:.*//' | tr '\n' ' ')"
+if [ -n "$BAD_YAML" ]; then
+  err "frontmatter: unquoted value contains ': ' in: $BAD_YAML — wrap the value in quotes"
+fi
+
 FM_NAME="$(printf '%s\n' "$FRONTMATTER" | sed -n 's/^name:[[:space:]]*//p' | head -1)"
 FM_NAME="${FM_NAME//\"/}"
 FM_NAME="${FM_NAME//\'/}"
