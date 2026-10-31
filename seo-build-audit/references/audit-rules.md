@@ -1,6 +1,6 @@
 # Audit rule reference
 
-Every finding `scripts/seo_audit.py` can emit (49 rules), what it means, and when it is safe to
+Every finding `scripts/seo_audit.py` can emit (58 rules), what it means, and when it is safe to
 ignore.
 
 **Scoring:** `100 - (8 × errors) - (2 × warnings)`, floored at 0. Info findings never affect the
@@ -33,6 +33,7 @@ several info rules fire because the thing is *ignored by Google*, so don't "fix"
 | `sitemap-relative-urls` | `<loc>` entries aren't absolute | Never |
 | `sitemap-too-large` | More than 50,000 URLs in one file | Never — split with a sitemap index |
 | `canonical-target-error` | The canonical URL itself returns `4xx`/`5xx` | Never — you are consolidating into nothing |
+| `soft-404` | Unknown URLs return `200` instead of `404` | Never — a catch-all route makes every missing page indexable |
 
 ## Warnings
 
@@ -53,6 +54,11 @@ several info rules fire because the thing is *ignored by Google*, so don't "fix"
 | `ldjson-retired-type` | Markup for a rich result Google retired (`FAQPage`, `HowTo`, `SitelinksSearchBox`, …) | Harmless but earns nothing — remove it or keep it for other consumers |
 | `ldjson-missing-required` | A required property is missing for that type | Never — the item becomes ineligible |
 | `hreflang-invalid-code` | Language or region subtag isn't valid ISO 639-1 / 3166-1 | Never — Google silently ignores that subtag |
+| `internal-link-broken` | An internal link returns `4xx`/`5xx` or no response | If the target is intentionally gone — then remove the link |
+| `duplicate-content` | Two pages share ≥80% of their 5-word shingles | Syndicated or regional variants where a canonical handles it |
+| `js-dependent-content` | Under 50 words served, with external scripts | A genuinely short page that isn't JS-rendered — verify with `curl` |
+| `og-image-unreachable` | `og:image` doesn't resolve | Never — previews fall back to nothing |
+| `cwv-poor` | Lab or field Core Web Vitals exceed thresholds | Never, but weigh it against relevance — it is one signal among many |
 | `redirect-chain` | More than one hop to resolve | Behind a host-level redirect you don't control |
 | `robots-missing` | No robots.txt | Acceptable on tiny sites; you lose crawl control and sitemap discovery |
 | `robots-unreachable` | robots.txt couldn't be fetched | Network blip — re-run before acting |
@@ -82,6 +88,9 @@ Observations, not defects. Several exist precisely to stop you adding markup tha
 | `twitter-card-missing` | No `twitter:card` | Optional — X/Twitter previews only |
 | `favicon-missing` | No `<link rel="icon">` | Add one — used as the favicon in search results |
 | `hreflang-no-x-default` | hreflang set has no `x-default` | Add one if you have a language selector or fallback |
+| `og-image-small` | `og:image` is below 600×315 | Use ≥1200×630 for large previews |
+| `cwv-pass` | Core Web Vitals within thresholds | None — this is the good outcome |
+| `cwv-unavailable` | PageSpeed Insights unreachable or quota exceeded | Add `--psi-key`; the anonymous quota is shared |
 
 ---
 
@@ -102,19 +111,23 @@ Observations, not defects. Several exist precisely to stop you adding markup tha
 
 State these when reporting, so a clean run isn't over-trusted:
 
-- It checks the **served HTML**, not Google's rendered result. Use URL Inspection for that view.
+- It checks the **served HTML**, not Google's rendered result. `js-dependent-content` is a heuristic;
+  confirm with the three-way comparison in `measurement.md`.
 - It does not execute JavaScript — which is why it is a faithful proxy for what a crawler receives.
-- **It does not measure performance.** No LCP, INP, or CLS. Use PageSpeed Insights or CrUX for those.
-- **It does not check links.** Internal links are parsed for discovery, but broken-link status is not
-  verified. A link checker or a crawler like Screaming Frog covers that.
-- **Soft 404s are not detected.** A "not found" page returning `200` looks like a normal page to it.
-  Check with `curl -o /dev/null -w '%{http_code}' <a-url-that-should-not-exist>`.
+- **Core Web Vitals only with `--psi`**, and only if the PSI API answers. It needs `--psi-key` for
+  reliable volume; the anonymous quota is shared and often exhausted. Without it, use Search Console
+  or CrUX.
+- **It cannot see Search Console state**: indexation, manual actions, crawl stats, impressions. A
+  clean audit means "eligible", not "indexed".
 - `hreflang-not-reciprocal` only fires between pages it actually crawled; missing targets are
   skipped rather than guessed.
-- It cannot see Search Console data: indexation status, manual actions, crawl stats, impressions. A
-  clean audit means "eligible", not "indexed".
-- It does not evaluate content quality, relevance, or intent match.
-- Near-duplicate body content is not detected — only exact duplicate titles and descriptions.
-- `og:image` is checked for presence, not for dimensions, format, or reachability.
-- The crawl is capped by `--max-pages` (default 25), so duplicate detection only sees the sample.
+- Link checking is capped at `--max-link-checks` (default 30) and covers **internal links only**.
+  External links are not verified.
+- `duplicate-content` compares 5-word shingles within the crawled sample. It catches near-identical
+  bodies, not paraphrases.
+- It does not evaluate content quality, relevance, or intent match — see the rubric in
+  `measurement.md`.
+- `og:image` dimensions are read for PNG, GIF, JPEG, and WebP only; SVG and AVIF report presence
+  without size.
+- The crawl is capped by `--max-pages` (default 25), so every cross-page check only sees the sample.
   Raise it for a full run: `--max-pages 200`.

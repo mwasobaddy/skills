@@ -144,6 +144,7 @@ Read only what the task needs.
 | `references/stacks.md` | You need the concrete emission point for Next.js, Rails, Django, Laravel, Astro, WordPress, or static HTML |
 | `references/debugging.md` | Something is broken: not indexed, wrong page ranks, traffic dropped, rich result gone |
 | `references/audit-rules.md` | Interpreting a finding, or deciding whether a warning matters for this site |
+| `references/measurement.md` | Core Web Vitals, Search Console state, the rendered DOM, or content quality — the four things a crawl cannot settle |
 
 ## Companions
 

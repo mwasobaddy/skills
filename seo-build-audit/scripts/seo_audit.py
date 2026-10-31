@@ -142,6 +142,10 @@ class PageParser(HTMLParser):
         self.meta_keywords = False
         self.rel_next_prev = False
         self.has_viewport = False
+        self.text_parts = []
+        self.script_count = 0
+        self.ext_scripts = 0
+        self._skip_text = 0
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -194,23 +198,45 @@ class PageParser(HTMLParser):
         elif tag == "a" and a.get("href"):
             self.links.append(a["href"])
         elif tag == "script":
+            self.script_count += 1
+            if a.get("src"):
+                self.ext_scripts += 1
             if (a.get("type") or "").lower() == "application/ld+json":
                 self._in_ld = True
                 self._ld_buf = []
+            else:
+                self._skip_text += 1
+        elif tag == "style":
+            self._skip_text += 1
 
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
-        elif tag == "script" and self._in_ld:
-            self._in_ld = False
-            self.ldjson.append("".join(self._ld_buf).strip())
-            self._ld_buf = []
+        elif tag == "script":
+            if self._in_ld:
+                self._in_ld = False
+                self.ldjson.append("".join(self._ld_buf).strip())
+                self._ld_buf = []
+            else:
+                self._skip_text = max(0, self._skip_text - 1)
+        elif tag == "style":
+            self._skip_text = max(0, self._skip_text - 1)
+
+    @property
+    def body_text(self):
+        t = " ".join(self.text_parts)
+        return re.sub(r"\s+", " ", t).strip()
 
     def handle_data(self, data):
+        if self._in_ld:
+            self._ld_buf.append(data)
+            return
         if self._in_title and self.title is not None:
             self.title += data
-        elif self._in_ld:
-            self._ld_buf.append(data)
+            return
+        if self._skip_text:
+            return
+        self.text_parts.append(data)
 
 
 def parse_html(body_bytes, encoding_hint=""):
@@ -252,6 +278,55 @@ def null_reader(url):
     return Response(url, 0, b"", {})
 
 
+def image_size(data):
+    """Return (width, height) for PNG, GIF, JPEG, or WebP, else None."""
+    b = data
+    if b[:8] == b"\x89PNG\r\n\x1a\n" and len(b) >= 24:
+        return int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")
+    if b[:6] in (b"GIF87a", b"GIF89a") and len(b) >= 10:
+        return (int.from_bytes(b[6:8], "little"),
+                int.from_bytes(b[8:10], "little"))
+    if b[:2] == b"\xff\xd8":
+        i = 2
+        sofs = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+        while i < len(b) - 9:
+            if b[i] != 0xFF:
+                i += 1
+                continue
+            marker = b[i + 1]
+            if marker in sofs:
+                return (int.from_bytes(b[i + 7:i + 9], "big"),
+                        int.from_bytes(b[i + 5:i + 7], "big"))
+            seglen = int.from_bytes(b[i + 2:i + 4], "big")
+            i += 2 + max(seglen, 2)
+        return None
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP" and len(b) >= 30:
+        chunk = b[12:16]
+        if chunk == b"VP8X":
+            return (int.from_bytes(b[24:27], "little") + 1,
+                    int.from_bytes(b[27:30], "little") + 1)
+        if chunk == b"VP8 ":
+            return (int.from_bytes(b[26:28], "little") & 0x3FFF,
+                    int.from_bytes(b[28:30], "little") & 0x3FFF)
+        if chunk == b"VP8L":
+            bits = int.from_bytes(b[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    return None
+
+
+def http_json(url, timeout=90):
+    try:
+        r = subprocess.run(
+            ["curl", "-sS", "-L", "-m", str(timeout), "-A", UA, url],
+            capture_output=True, timeout=timeout + 15)
+        if r.returncode != 0:
+            return None
+        return json.loads(r.stdout.decode("utf-8", "replace"))
+    except Exception:
+        return None
+
+
 class Auditor:
     def __init__(self, base, fetch=null_reader, max_pages=25, seed=None):
         # base must be an origin (scheme://host). Passing a full page URL makes every
@@ -263,6 +338,8 @@ class Auditor:
         self.seed = seed or self.base
         self.findings = []
         self.pages = []
+        self.max_link_checks = 30
+        self.status_cache = {}
 
     def get(self, url):
         return self._fetch(url)
@@ -442,7 +519,10 @@ class Auditor:
                  "title": (p.title or "").strip(),
                  "desc": next((d.strip() for d in p.descriptions if d.strip()), ""),
                  "canonicals": p.canonicals,
-                 "hreflangs": p.hreflangs, "ldjson": p.ldjson, "h1": p.h1}
+                 "hreflangs": p.hreflangs, "ldjson": p.ldjson, "h1": p.h1,
+                 "text": p.body_text, "words": len(p.body_text.split()),
+                 "links": p.links, "og_image": p.og.get("og:image", ""),
+                 "scripts": p.script_count}
         self.pages.append(entry)
         L = loc(url)
 
@@ -526,6 +606,13 @@ class Auditor:
             self.add(WARN, "lang-missing", L, "<html> has no lang attribute",
                      "Add lang for accessibility. Google infers language from text, not this attribute.")
 
+        words = len(p.body_text.split())
+        if words < 50 and p.ext_scripts:
+            self.add(WARN, "js-dependent-content", L,
+                     f"only {words} words in the served HTML, but {p.ext_scripts} external script(s)",
+                     "Confirm with `curl` and URL Inspection's rendered HTML. If the body appears "
+                     "only after hydration, Google may index an empty shell.")
+
         self._check_ldjson(L, p)
 
         if p.images_no_alt:
@@ -593,6 +680,97 @@ class Auditor:
                          f"canonical target is not reachable ({r.status or 'no response'}): {c}",
                          "Fix the target or the canonical. Consolidating into a broken URL loses the page.")
 
+    def check_soft_404(self):
+        """A catch-all route makes every missing URL indexable as a duplicate."""
+        if not self.seed or not self.seed.startswith(("http://", "https://")):
+            return
+        probe = f"{self.base}/seo-audit-nonexistent-{os.urandom(5).hex()}"
+        r = self.get(probe)
+        if r.status == 200:
+            self.add(ERROR, "soft-404", loc(probe),
+                     "unknown URLs return 200 instead of 404",
+                     "A catch-all route makes every missing page indexable as a duplicate. "
+                     "Return 404 for unmatched paths.")
+
+    def check_internal_links(self, host):
+        if not self.max_link_checks:
+            return
+        checked, seen = 0, set()
+        for p in self.pages:
+            if p.get("excluded") or p["status"] != 200:
+                continue
+            base = p.get("final") or p["url"]
+            for href in p.get("links", []):
+                if checked >= self.max_link_checks:
+                    return
+                if href.startswith(("mailto:", "tel:", "javascript:", "#", "data:")):
+                    continue
+                u = urljoin(base, href).split("#")[0].rstrip("/")
+                if urlsplit(u).netloc != host or u in seen:
+                    continue
+                seen.add(u)
+                if u in self.status_cache:
+                    st = self.status_cache[u]
+                else:
+                    st = self.get(u).status
+                    self.status_cache[u] = st
+                checked += 1
+                if st == 0 or st >= 400:
+                    self.add(WARN, "internal-link-broken", loc(p["url"]),
+                             f"internal link returns {st or 'no response'}: {u}",
+                             "Fix or remove it; broken links waste crawl budget and lose users.")
+
+    def check_duplicate_content(self):
+        def shingles(text):
+            w = re.findall(r"[a-z0-9']+", text.lower())
+            if len(w) < 100:
+                return None
+            return {" ".join(w[i:i + 5]) for i in range(len(w) - 4)}
+
+        sigs = []
+        for p in self.pages:
+            if p.get("excluded") or p["status"] != 200 or p.get("words", 0) < 100:
+                continue
+            s = shingles(p.get("text", ""))
+            if s:
+                sigs.append((p, s))
+        for i in range(len(sigs)):
+            for j in range(i + 1, len(sigs)):
+                a, sa = sigs[i]
+                b, sb = sigs[j]
+                inter = len(sa & sb)
+                if not inter:
+                    continue
+                if inter / len(sa | sb) >= 0.8:
+                    self.add(WARN, "duplicate-content", loc(a["url"]),
+                             f"~{int(100 * inter / len(sa | sb))}% shared phrasing with "
+                             f"{loc(b['url'])}",
+                             "Near-identical pages compete with each other. Consolidate or differentiate.")
+
+    def check_og_images(self):
+        seen = set()
+        for p in self.pages:
+            if p.get("excluded"):
+                continue
+            src = p.get("og_image")
+            if not src or src in seen:
+                continue
+            seen.add(src)
+            if len(seen) > 10:
+                return
+            u = urljoin(p.get("final") or p["url"], src)
+            r = self.get(u)
+            if r.status == 0 or r.status >= 400:
+                self.add(WARN, "og-image-unreachable", loc(p["url"]),
+                         f"og:image does not resolve ({r.status or 'no response'}): {u}",
+                         "Link previews and the result thumbnail fall back to nothing.")
+                continue
+            dims = image_size(r.body)
+            if dims and (dims[0] < 600 or dims[1] < 315):
+                self.add(INFO, "og-image-small", loc(p["url"]),
+                         f"og:image is {dims[0]}x{dims[1]}",
+                         "Aim for at least 1200x630 so previews render large.")
+
     # ---- cross-page
     def check_duplicates(self):
         titles = defaultdict(list)
@@ -639,6 +817,7 @@ class Auditor:
     def run(self):
         self.check_https()
         self.check_robots()
+        self.check_soft_404()
         sitemap_urls = self.check_sitemap(self.base)
         targets = self.discover(sitemap_urls)
         # Always audit the URL the user actually asked about, even when the sitemap
@@ -663,6 +842,9 @@ class Auditor:
                 continue
             audited[key] = u
         self.check_canonical_targets(audited)
+        self.check_internal_links(urlsplit(self.base).netloc)
+        self.check_duplicate_content()
+        self.check_og_images()
         self.check_duplicates()
         self.check_hreflang_reciprocity()
         return self.findings
@@ -772,6 +954,61 @@ def report(findings, pages, out_json=None):
     return 1 if errors else 0
 
 
+def psi_findings(url, key=None):
+    """Core Web Vitals from the public PageSpeed Insights API.
+
+    Optional on purpose: it needs network access, is rate limited, and field data
+    only exists for origins with enough real traffic. Pass --psi-key or set
+    PSI_API_KEY; the anonymous quota is shared and usually exhausted.
+    """
+    from urllib.parse import quote
+    api = ("https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+           f"?url={quote(url, safe='')}&strategy=mobile&category=performance")
+    if key:
+        api += f"&key={quote(key, safe='')}"
+    d = http_json(api)
+    if not d:
+        return [Finding(INFO, "cwv-unavailable", "/",
+                        "PageSpeed Insights unreachable", "")]
+    err = d.get("error")
+    if err:
+        code = err.get("code")
+        msg = "PageSpeed Insights unavailable"
+        if code == 429:
+            msg = ("PageSpeed Insights quota exceeded — pass --psi-key or set PSI_API_KEY. "
+                   "The anonymous quota is shared and usually exhausted.")
+        return [Finding(INFO, "cwv-unavailable", "/", msg, "")]
+
+    audits = (d.get("lighthouseResult") or {}).get("audits") or {}
+
+    def num(key):
+        return (audits.get(key) or {}).get("numericValue")
+
+    field = (d.get("loadingExperience") or {}).get("metrics") or {}
+    lcp, cls = num("largest-contentful-paint"), num("cumulative-layout-shift")
+    flcp = (field.get("LARGEST_CONTENTFUL_PAINT_MS") or {}).get("percentile")
+    finp = (field.get("INTERACTION_TO_NEXT_PAINT") or {}).get("percentile")
+    fcls = (field.get("CUMULATIVE_LAYOUT_SHIFT_SCORE") or {}).get("percentile")
+
+    bad = []
+    if lcp and lcp > 2500:
+        bad.append(f"lab LCP {lcp / 1000:.1f}s")
+    if cls and cls > 0.1:
+        bad.append(f"lab CLS {cls:.2f}")
+    if flcp and flcp > 2500:
+        bad.append(f"field LCP {flcp / 1000:.1f}s")
+    if finp and finp > 200:
+        bad.append(f"field INP {finp}ms")
+    if fcls and fcls / 100 > 0.1:
+        bad.append(f"field CLS {fcls / 100:.2f}")
+
+    if bad:
+        return [Finding(WARN, "cwv-poor", "/", ", ".join(bad),
+                        "Thresholds are LCP 2.5s, INP 200ms, CLS 0.1. Lab data is a proxy; "
+                        "field data is what ranking systems see.")]
+    return [Finding(INFO, "cwv-pass", "/", "Core Web Vitals within thresholds", "")]
+
+
 # --------------------------------------------------------------------------- selftest
 BAD_PAGE = """<!doctype html><html><head>
 <title>A Page About Widgets And Shipping And Many Other Things Besides Widgets For Everyone</title>
@@ -780,7 +1017,28 @@ BAD_PAGE = """<!doctype html><html><head>
 <link rel="alternate" hreflang="de-CH" href="/de">
 <script type="application/ld+json">{ "name": "broken" </script>
 </head><body><h1>x</h1><h1>y</h1><img src="a.png"><img src="b.png">
-<a href="/clean">c</a></body></html>"""
+<a href="/clean">c</a> <a href="/does-not-exist">broken</a></body></html>"""
+
+LONG_PARAGRAPH = ("Our programme works with schools across the county to identify girls who have "
+                  "dropped out and to support their return to a classroom with a mentor, a uniform "
+                  "and the materials they need for the term ahead. Each mentor meets the family at "
+                  "home, agrees a plan with the school, and checks in weekly for the first three "
+                  "months so that problems are caught early rather than after another absence. The "
+                  "approach is deliberately slow and personal because re-entry fails when it is "
+                  "treated as a placement rather than a relationship that has to be rebuilt with "
+                  "teachers, caregivers and the girls themselves.")
+
+DUP_A = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Programme A</title>
+<meta name="description" content="Programme A page.">
+<link rel="canonical" href="https://example.com/dup-a"></head>
+<body><h1>Programme A</h1><p>{LONG_PARAGRAPH}</p><p>{LONG_PARAGRAPH}</p></body></html>"""
+
+DUP_B = DUP_A.replace("Programme A", "Programme B").replace("dup-a", "dup-b")
+
+SPARSE_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width"><title>Sparse app</title>
+<script src="/app.js"></script></head><body><div id="root"></div></body></html>"""
 
 # A page carrying markup Google has retired, plus an unassigned region code.
 RETIRED_PAGE = """<!doctype html><html lang="en"><head>
@@ -827,6 +1085,9 @@ def selftest():
         open(os.path.join(td, "clean.html"), "w").write(CLEAN_PAGE)
         open(os.path.join(td, "admin.html"), "w").write(ADMIN_PAGE)
         open(os.path.join(td, "retired.html"), "w").write(RETIRED_PAGE)
+        open(os.path.join(td, "dup-a.html"), "w").write(DUP_A)
+        open(os.path.join(td, "dup-b.html"), "w").write(DUP_B)
+        open(os.path.join(td, "sparse.html"), "w").write(SPARSE_PAGE)
         a = DirAuditor(td, "https://example.com", 10)
         findings = a.run()
 
@@ -860,6 +1121,27 @@ def selftest():
             print(f"FAIL: retired/invalid markup not caught: "
                   f"{sorted(must_fire_retired - retired_rules)}")
             ok = False
+
+        # Broader checks: broken internal link, near-duplicate body, JS-only shell.
+        extra = {"internal-link-broken", "duplicate-content", "js-dependent-content"}
+        if extra - rules:
+            print(f"FAIL: checks did not fire: {sorted(extra - rules)}")
+            ok = False
+
+        # Soft 404: a catch-all that answers 200 for any path must be flagged.
+        class CatchAll(DirAuditor):
+            def __init__(self, root, base_url, n=10):
+                super().__init__(root, base_url, n)
+                self.seed = base_url + "/"
+
+            def get(self, url):
+                if "seo-audit-nonexistent" in url:
+                    return Response(url, 200, b"", {})
+                return super().get(url)
+
+        if not any(f.rule == "soft-404" for f in CatchAll(td, "https://example.com", 5).run()):
+            print("FAIL: soft-404 not detected")
+            ok = False
         if bad_positive:
             print(f"FAIL: false positive on clean page: {sorted(bad_positive)}")
             ok = False
@@ -890,6 +1172,12 @@ def main():
     ap.add_argument("target", nargs="?", help="site URL or local directory")
     ap.add_argument("--base-url", help="site URL to use for a local directory")
     ap.add_argument("--max-pages", type=int, default=25)
+    ap.add_argument("--max-link-checks", type=int, default=30,
+                    help="internal links to verify; 0 disables")
+    ap.add_argument("--psi", action="store_true",
+                    help="also fetch Core Web Vitals from PageSpeed Insights")
+    ap.add_argument("--psi-key", default=os.environ.get("PSI_API_KEY", ""),
+                    help="PageSpeed Insights API key (or set PSI_API_KEY)")
     ap.add_argument("--json", help="write a machine-readable report")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
@@ -909,6 +1197,8 @@ def main():
             ap.error(f"not a directory: {t}")
         auditor = DirAuditor(t, args.base_url or "https://example.com", args.max_pages)
 
+    auditor.max_link_checks = args.max_link_checks
+
     try:
         subprocess.run(["curl", "--version"], capture_output=True, check=True)
     except Exception:
@@ -917,6 +1207,8 @@ def main():
             return 2
 
     findings = auditor.run()
+    if args.psi and isinstance(auditor, Auditor) and not isinstance(auditor, DirAuditor):
+        findings.extend(psi_findings(auditor.seed or auditor.base, args.psi_key))
     return report(findings, auditor.pages, args.json)
 
 

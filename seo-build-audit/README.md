@@ -57,6 +57,9 @@ python3 scripts/seo_audit.py ./dist --base-url https://example.com
 # live site, after deploy
 python3 scripts/seo_audit.py https://example.com --max-pages 50
 
+# add Core Web Vitals (needs an API key; the anonymous quota is shared)
+python3 scripts/seo_audit.py https://example.com --psi --psi-key "$PSI_API_KEY"
+
 # machine-readable, for CI
 python3 scripts/seo_audit.py https://example.com --json report.json
 
@@ -64,7 +67,7 @@ python3 scripts/seo_audit.py https://example.com --json report.json
 python3 scripts/seo_audit.py --selftest
 ```
 
-Requires `python3` and `curl`. `--dir` mode uses no network at all.
+Requires `python3` and `curl`. Directory mode uses no network at all.
 
 Checks status codes, `noindex` (meta and header), titles, descriptions, canonicals, `h1` and `lang`,
 charset, viewport, Open Graph and Twitter tags, favicons, JSON-LD validity, hreflang reciprocity,
@@ -72,14 +75,23 @@ image alt text, robots.txt, and the sitemap. Duplicate titles and descriptions a
 the crawled set, and pages that are deliberately `noindex` are classified as excluded rather than
 nagged for metadata they don't need.
 
-It also catches the two failures most tools miss: **markup for a rich result Google retired**
-(`FAQPage`, `HowTo`, and ten others), and **missing required properties** for the type you used. Plus
-hreflang subtag validation, and canonical URLs that don't resolve.
+Beyond metadata it also catches:
+
+- **soft 404s** — probes a nonexistent path and fails if the site answers `200`
+- **broken internal links** — verifies up to `--max-link-checks` targets
+- **near-duplicate pages** — ≥80% shared 5-word shingles
+- **JS-only shells** — under 50 words served alongside external scripts
+- **retired schema types** — `FAQPage`, `HowTo`, and ten others Google no longer renders
+- **missing required properties** for the structured data type you used
+- **canonical URLs that don't resolve**
+- **`og:image`** reachability and dimensions (PNG, GIF, JPEG, WebP)
+- **invalid hreflang subtags** — including the `UK`/`EU`/`UN` trap
 
 Exit code is `1` when an error exists, `0` otherwise, so it works directly in CI.
 
-**A clean audit means the page is eligible, not that it will rank.** Relevance is out of scope, and
-the skill says so rather than inventing a technical cause for a ranking problem.
+**A clean audit means the page is eligible, not that it will rank.** Core Web Vitals need `--psi`;
+Search Console state and content quality cannot be automated at all — see
+`references/measurement.md` for those, and don't let a green score imply otherwise.
 
 ## Contents
 
@@ -88,7 +100,8 @@ the skill says so rather than inventing a technical cause for a ranking problem.
 - `references/stacks.md` — where each framework emits head/status/redirect
 - `references/debugging.md` — 11 symptom-driven playbooks
 - `references/head-template.md` — the complete `<head>`, ordering rules, and who consumes each tag
-- `references/audit-rules.md` — all 49 rules, severity, and when to ignore each
+- `references/audit-rules.md` — all 58 rules, severity, and when to ignore each
+- `references/measurement.md` — Core Web Vitals, Search Console, rendered DOM, content quality
 - `scripts/seo_audit.py` — the auditor, with `--selftest`
 - `evals/trigger-queries.json` — trigger evaluation set
 
