@@ -101,14 +101,32 @@ Skipping items 1–3 is what produces "the page is indexed but nobody clicks it.
 
 ## Verify, don't assume
 
-Run the audit before declaring done. It works on a local build or a deployed URL:
+The script lives in **this skill's directory**, not in the user's project. A relative path like
+`scripts/seo_audit.py` fails unless the working directory happens to be the skill folder — a
+failure to find it is **not** evidence that it isn't installed.
+
+Locate it first, then run:
 
 ```bash
-python3 scripts/seo_audit.py ./dist --base-url https://example.com   # during development
-python3 scripts/seo_audit.py https://example.com --max-pages 50      # after deploy
-python3 scripts/seo_audit.py https://example.com --max-pages 0       # every page discovered
-python3 scripts/seo_audit.py https://example.com --json report.json  # machine-readable
+SKILL_DIR=""
+for d in "$HOME/.claude/skills" "$HOME/.config/opencode/skills" "$HOME/.agents/skills" \
+         "$HOME/.cursor/skills" "$HOME/.gemini/skills" "$HOME/.copilot/skills"; do
+  [ -d "$d/seo-build-audit/scripts" ] && SKILL_DIR="$d/seo-build-audit" && break
+done
+echo "skill dir: ${SKILL_DIR:-NOT FOUND}"
+
+python3 "$SKILL_DIR/scripts/seo_audit.py" --selftest                      # proves it runs
+python3 "$SKILL_DIR/scripts/seo_audit.py" ./dist --base-url https://example.com
+python3 "$SKILL_DIR/scripts/seo_audit.py" https://example.com --max-pages 0
+python3 "$SKILL_DIR/scripts/seo_audit.py" https://example.com --json report.json
 ```
+
+Run `--selftest` first: `PASS` means the file is present and working.
+
+**If no directory is found, say so and give the user the command to run.** Do not replace this with
+an improvised sequence of `curl` calls and present it as the audit — it will silently skip the
+sitemap, duplicate-cluster, hreflang and structured-data checks, and the user will believe those
+were checked.
 
 Discovery follows the **sitemap plus internal links**, so pages missing from the sitemap are still
 audited and flagged. `--max-pages` limits pages audited, not links followed; `0` means everything.

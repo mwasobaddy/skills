@@ -118,7 +118,7 @@ shape when you add a `[locale]` prefix.
 
 Plan in this order:
 
-1. **Inventory strings** — run `scripts/find-untranslated.sh` to find hardcoded JSX text.
+1. **Inventory strings** — run `$SKILL_DIR/scripts/find-untranslated.sh` to find hardcoded JSX text.
 2. **Choose the routing strategy before coding.** Locale-prefix-always (`/en/about`,
    `/de/about`) is the default; it is unambiguous and hreflang-clean. `localePrefix: 'as-needed'`
    serves the default locale at the bare path — better URLs, weaker SEO signal. Decide now;
@@ -179,10 +179,19 @@ The `description` is the only thing the agent sees before deciding to load this 
 fails to fire, nothing below matters.
 
 ```bash
-bash scripts/run-trigger-eval.sh --dry-run          # show the plan, no API calls
-bash scripts/run-trigger-eval.sh --split train     # 12 queries x 3 runs
-bash scripts/run-trigger-eval.sh --split validation --out report.json
+SKILL_DIR=""
+for d in "$HOME/.claude/skills" "$HOME/.config/opencode/skills" "$HOME/.agents/skills" \
+         "$HOME/.cursor/skills" "$HOME/.gemini/skills" "$HOME/.copilot/skills"; do
+  [ -d "$d/nextjs-i18n/scripts" ] && SKILL_DIR="$d/nextjs-i18n" && break
+done
+
+bash "$SKILL_DIR/scripts/run-trigger-eval.sh" --dry-run          # plan, no API calls
+bash "$SKILL_DIR/scripts/run-trigger-eval.sh" --split train      # 12 queries x 3 runs
+bash "$SKILL_DIR/scripts/run-trigger-eval.sh" --split validation --out report.json
 ```
+
+The scripts live in this skill's directory, not the user's project; bare `scripts/…` paths will not
+resolve from an app directory.
 
 Query set: `evals/trigger-queries.json` — 12 should-trigger, 8 should-not-trigger, split
 60/40 into a fixed train and validation set.

@@ -50,6 +50,9 @@ npx skills add mwasobaddy/skills --skill seo-build-audit
 
 ## Audit
 
+> Run these from this skill's directory — that is where `scripts/` lives. If you are
+> elsewhere, substitute the resolved path shown in `SKILL.md`.
+
 ```bash
 # local build, before deploy
 python3 scripts/seo_audit.py ./dist --base-url https://example.com

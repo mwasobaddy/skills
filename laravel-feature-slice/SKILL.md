@@ -151,11 +151,25 @@ Over-correction produces a different mess. Skip these unless you can name the re
 
 ## Check the app against this
 
+The script lives in **this skill's directory**, not in the user's project — a relative
+`scripts/laravel_audit.py` fails unless the working directory is the skill folder. Locate it first:
+
 ```bash
-python3 scripts/laravel_audit.py /path/to/app
-python3 scripts/laravel_audit.py . --json report.json
-python3 scripts/laravel_audit.py --selftest
+SKILL_DIR=""
+for d in "$HOME/.claude/skills" "$HOME/.config/opencode/skills" "$HOME/.agents/skills" \
+         "$HOME/.cursor/skills" "$HOME/.gemini/skills" "$HOME/.copilot/skills"; do
+  [ -d "$d/laravel-feature-slice/scripts" ] && SKILL_DIR="$d/laravel-feature-slice" && break
+done
+echo "skill dir: ${SKILL_DIR:-NOT FOUND}"
+
+python3 "$SKILL_DIR/scripts/laravel_audit.py" --selftest        # proves it runs
+python3 "$SKILL_DIR/scripts/laravel_audit.py" /path/to/app
+python3 "$SKILL_DIR/scripts/laravel_audit.py" . --json report.json
 ```
+
+**If no directory is found, say so and give the user the command to run.** Do not substitute an
+improvised grep over `app/Http/Controllers` and present it as this audit — it will miss the route,
+Inertia, Livewire and test checks, and the user will believe the app passed them.
 
 Flags inline validation, Eloquent writes in controllers, raw `Request` injection, Form Requests
 missing `rules()`/`authorize()`, oversize controllers/models/actions, `env()` outside config, `dd()`

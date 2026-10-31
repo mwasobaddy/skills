@@ -59,6 +59,9 @@ npx skills add mwasobaddy/skills --skill google-search-docs
 
 ## Script usage
 
+> Run these from this skill's directory — that is where `scripts/` lives. If you are
+> elsewhere, substitute the resolved path shown in `SKILL.md`.
+
 ```bash
 python3 scripts/crawl-google-docs.py --out /tmp/gdocs            # full crawl (~5 min)
 python3 scripts/crawl-google-docs.py --out /tmp/gdocs --diff     # what changed since last run

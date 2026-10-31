@@ -157,9 +157,20 @@ distinct live documents, plus 15 retired features that redirect. Google edits th
 continuously, so verify a load-bearing claim before relying on it in high-stakes work:
 
 ```bash
-python3 scripts/crawl-google-docs.py --out /tmp/gdocs     # fetch + extract
-python3 scripts/crawl-google-docs.py --out /tmp/gdocs --diff   # show pages changed since last run
+SKILL_DIR=""
+for d in "$HOME/.claude/skills" "$HOME/.config/opencode/skills" "$HOME/.agents/skills" \
+         "$HOME/.cursor/skills" "$HOME/.gemini/skills" "$HOME/.copilot/skills"; do
+  [ -d "$d/google-search-docs/scripts" ] && SKILL_DIR="$d/google-search-docs" && break
+done
+
+python3 "$SKILL_DIR/scripts/crawl-google-docs.py" --out /tmp/gdocs          # fetch + extract
+python3 "$SKILL_DIR/scripts/crawl-google-docs.py" --out /tmp/gdocs --diff   # what changed
 ```
+
+The script lives in this skill's directory, not the user's project, so a bare
+`scripts/crawl-google-docs.py` will not resolve. If you cannot locate it, say so rather than
+re-deriving the documentation from memory — this skill exists precisely because recall is unreliable
+here.
 
 The script is resumable and caches HTML, so re-running is cheap. When a claim is contradicted by a
 fresh crawl, **trust the crawl** and note the change rather than deferring to this file.

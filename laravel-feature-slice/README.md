@@ -55,6 +55,9 @@ should be committed.
 
 ## Audit
 
+> Run these from this skill's directory — that is where `scripts/` lives. If you are
+> elsewhere, substitute the resolved path shown in `SKILL.md`.
+
 ```bash
 python3 scripts/laravel_audit.py /path/to/app
 python3 scripts/laravel_audit.py . --json report.json

@@ -156,7 +156,43 @@ if seed and seed not in targets:
 Test with a **deep path** (`/a/b/c`) and a bare origin. A run that only ever sees `/` cannot detect
 this class of bug.
 
+## 4e. Never document a script path relative to the skill directory
 
+**What happened.** The SEO skill's instructions said:
+
+```bash
+python3 scripts/seo_audit.py https://example.com
+```
+
+That resolves only if the working directory *is* the skill folder. An agent loaded the skill while
+working in the user's Laravel project, tried the path, found nothing, and reported:
+
+> The skill's helper scripts aren't installed, so I'll run the audit directly.
+
+It then hand-rolled a crawl with `curl` and presented it as the audit. The scripts were installed the
+whole time. Two failures compounded: a relative path that was never valid, and an agent substituting
+an improvised procedure for the one the skill exists to provide.
+
+**Rule.** Scripts shipped inside a skill live in the skill's directory, not the user's. Resolve it
+explicitly, and require verification before use:
+
+```bash
+SKILL_DIR=""
+for d in "$HOME/.claude/skills" "$HOME/.config/opencode/skills" "$HOME/.agents/skills"; do
+  [ -d "$d/<skill>/scripts" ] && SKILL_DIR="$d/<skill>" && break
+done
+
+python3 "$SKILL_DIR/scripts/thing.py" --selftest   # PASS means present and working
+```
+
+Then say what to do when it is genuinely missing — **tell the user, do not improvise**. A substitute
+procedure is worse than none, because the report looks like the real check ran and the skipped checks
+are invisible.
+
+Test by running the documented command from a *different* directory. A command verified only from the
+skill folder is unverified.
+
+## 5. macOS `find -regex` is BRE — no alternation
 
 **What happened.** `find . -regex ".*\.\(tsx|jsx|ts\)$"` matched nothing on macOS. BSD
 `find` uses basic regular expressions, where `|` is a literal character. The script printed
