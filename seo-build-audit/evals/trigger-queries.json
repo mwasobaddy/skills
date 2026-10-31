@@ -1,0 +1,146 @@
+{
+  "_meta": {
+    "skill": "seo-build-audit",
+    "purpose": "Trigger evals for the SKILL.md description. A query passes when the skill is loaded exactly as should_trigger expects, measured as a trigger rate over N runs.",
+    "method": "https://agentskills.io/skill-creation/optimizing-descriptions",
+    "runs_per_query": 3,
+    "threshold": 0.5,
+    "split_policy": "Fixed at 12 train / 8 validation (60/40). Never optimize against the validation set — it exists only to detect overfitting. Keep the split stable across iterations so runs are comparable.",
+    "how_to_read_failures": {
+      "should_trigger_false": "Description too narrow, or the phrasing a developer would actually use is missing. Broaden toward the intent (implement / verify / diagnose), not the keyword.",
+      "should_trigger_low_rate": "Nondeterminism. Re-run before editing the description.",
+      "should_not_trigger_true": "Description too broad. This skill builds and verifies technical SEO; it should not load for keyword research, backlink analysis, content writing, or analytics reporting."
+    },
+    "known_risks": [
+      "The installed SEO family already covers research and content (seo-audit, seo-content, seo-plan, seo-backlinks). Negatives N2, N3, N7 police that boundary — those asks belong to those skills, not this one.",
+      "P4 and P9 name no framework, testing whether 'regardless of framework' phrasing is matched by intent rather than by framework keywords.",
+      "P7 and P8 describe symptoms with no SEO vocabulary at all. They test whether the description covers debugging, which is half the skill's job.",
+      "N5 is adjacent — generating hreflang tags is mechanical markup, not an implementation decision. It should not require this skill's playbooks.",
+      "N8 is infrastructure with no Search behaviour. It polices 'anything web-related' drift.",
+      "Deliberately NOT included as a negative: 'migrate our blog and keep the URLs'. That is redirect and site-move work, which this skill does cover, and marking it negative would train the description away from a real use case."
+    ],
+    "results": []
+  },
+  "queries": [
+    {
+      "query": "where should the canonical tag go in our next.js app router pages",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Direct implementation question with an explicit stack."
+    },
+    {
+      "query": "our product pages all show the same title in google results, how do we fix that",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Duplicate metadata symptom. Tests the debugging half."
+    },
+    {
+      "query": "is it ok for a react spa to render the main content only after javascript loads",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Rendering model decision — gate 4."
+    },
+    {
+      "query": "how do i paginate a blog index so google indexes every page",
+      "should_trigger": true,
+      "split": "train",
+      "note": "No framework named. Tests intent-based triggering."
+    },
+    {
+      "query": "our new page has been live for a week and still isnt in google. what do i check",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Indexing triage playbook. Pure debugging vocabulary."
+    },
+    {
+      "query": "settings up hreflang for en gb en us and de on a rails app",
+      "should_trigger": true,
+      "split": "train",
+      "note": "hreflang implementation plus a stack."
+    },
+    {
+      "query": "traffic dropped by half the day after we deployed. nothing else changed",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Post-deploy regression playbook. No SEO keywords at all."
+    },
+    {
+      "query": "write the json-ld for an article page and make sure its valid",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Structured data implementation."
+    },
+    {
+      "query": "we get 200 for urls that dont exist because the spa fallback catches everything",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Soft 404 diagnosis with no SEO vocabulary."
+    },
+    {
+      "query": "should internal search result pages be noindex",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Indexing policy decision."
+    },
+    {
+      "query": "our robots.txt has disallow slash by accident. will that kill the site",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Gate 1 failure. The auditor has a specific rule for this."
+    },
+    {
+      "query": "how do i stop staging from showing up in google after i deploy",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Staging protection — the most common production incident."
+    },
+    {
+      "query": "what keywords should we target for a mid-size accounting firm",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Keyword research. This skill has no data for it."
+    },
+    {
+      "query": "analyse our backlink profile and tell me which links to disavow",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Backlink analysis — a different skill's job."
+    },
+    {
+      "query": "draft a 1500 word article about payroll compliance",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Content writing."
+    },
+    {
+      "query": "set up mixpanel events on our signup form",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Analytics instrumentation."
+    },
+    {
+      "query": "take these four locales and generate the hreflang link tags for me",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Mechanical markup generation — no implementation decision or diagnosis needed."
+    },
+    {
+      "query": "pull our organic sessions by month for the last year into a spreadsheet",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Reporting/extraction of the site's own data. No implementation or diagnosis."
+    },
+    {
+      "query": "choose a colour palette and logo for the rebrand",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Visual design."
+    },
+    {
+      "query": "configure github actions to deploy to our staging environment",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "CI/CD plumbing, no Search behaviour involved."
+    }
+  ]
+}
