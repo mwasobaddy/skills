@@ -76,6 +76,7 @@ before writing scripts, because most of those mistakes were made here.
 | Skill | What it does | Install |
 | --- | --- | --- |
 | [nextjs-i18n](nextjs-i18n) | Next.js App Router internationalization — library choice, locale routing, message catalogs, ICU plurals, hreflang, and retrofitting an existing app | `npx skills add mwasobaddy/skills --skill nextjs-i18n` |
+| [google-search-docs](google-search-docs) | Grounds SEO and Search answers in Google's own documentation — corrects retired features and stale advice, with crawler, indexing, structured-data, hreflang, and traffic-drop procedures | `npx skills add mwasobaddy/skills --skill google-search-docs` |
 
 ## License
 

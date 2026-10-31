@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "skill": "google-search-docs",
+    "purpose": "Trigger evals for the SKILL.md description. A query passes when the skill is loaded exactly as should_trigger expects, measured as a trigger rate over N runs.",
+    "method": "https://agentskills.io/skill-creation/optimizing-descriptions",
+    "runs_per_query": 3,
+    "threshold": 0.5,
+    "split_policy": "Fixed at 12 train / 8 validation (60/40). Never optimize against the validation set — it exists only to detect overfitting. Keep the split stable across iterations so runs are comparable.",
+    "how_to_read_failures": {
+      "should_trigger_false": "Description too narrow, or the wording the agent would actually use is missing. Broaden the concept; do not paste keywords from the failed query.",
+      "should_trigger_low_rate": "Nondeterminism. Re-run before editing the description — a single run proves nothing.",
+      "should_not_trigger_true": "Description too broad. This skill is a source-of-truth and correction layer; it should not load for tasks that merely touch a website (copywriting, analytics setup, accessibility, deployment)."
+    },
+    "known_risks": [
+      "'SEO' is the broadest term in the description and the most likely false-positive source. The negatives N1, N3, N7 exist to police it — they are SEO-adjacent asks that this skill does not answer better than a direct response.",
+      "Several positives deliberately avoid the word 'SEO' and the word 'Google' where possible (P3, P5, P6), testing whether intent-based phrasing fires on its own.",
+      "P10 tests a tactic the docs explicitly debunk. The skill must load to say 'Google ignores it' — a non-trigger would leave the agent improvising.",
+      "N4 and N5 are adjacent to the skill's actual content (structured data, hreflang) but ask for implementation or translation, not for Google's documented position. They police scope creep."
+    ],
+    "results": []
+  },
+  "queries": [
+    {
+      "query": "is faqpage schema still worth adding? our agency says it gets us faq rich results",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Retired feature. The skill must load to correct the premise rather than help implement it."
+    },
+    {
+      "query": "our main page has been sitting at position 4 for three months. is that a penalty?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Tests ranking-system knowledge — no penalty concept applies, and the doc says a 2->4 move needs no action."
+    },
+    {
+      "query": "search console says my page is indexed but it never shows up when i search for it",
+      "should_trigger": true,
+      "split": "train",
+      "note": "No 'SEO', no 'Google docs'. Tests intent-based triggering on an indexing question."
+    },
+    {
+      "query": "do i still need to set priority and changefreq in my sitemap?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Both are ignored. A confident wrong answer ('yes, set them') is the failure mode without the skill."
+    },
+    {
+      "query": "we're moving example.com to example.co.uk next month, what redirects and console steps do we need",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Site-move procedure, including the Change of Address eligibility rules."
+    },
+    {
+      "query": "does google still use rel prev next for paginated category pages",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Retired tag. Tests a direct yes/no that training data gets wrong."
+    },
+    {
+      "query": "how do i tell google that german and french versions of the same page are alternates",
+      "should_trigger": true,
+      "split": "train",
+      "note": "hreflang. Reciprocity and x-default are the parts that get missed."
+    },
+    {
+      "query": "traffic fell 40% the week after the last core update. what should i check first?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Traffic-drop triage procedure. Also tests the 'wait a full week' rule."
+    },
+    {
+      "query": "what lcp and inp numbers do i need to hit for core web vitals",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Exact thresholds: 2.5s, 200ms, 0.1."
+    },
+    {
+      "query": "should we publish an llms.txt file so we show up in ai overviews",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Tests the AI-features correction. The skill must load to say Google ignores it."
+    },
+    {
+      "query": "disallow in robots.txt but the page still appears in search results. what did i do wrong?",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "robots.txt is not a deindexing tool. Common misconception with a precise documented answer."
+    },
+    {
+      "query": "which schema type should a recipe page use and which fields are actually required",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Required-properties lookup. Recipe requires only name — most guides over-specify."
+    },
+    {
+      "query": "write a 150 character meta description for my plumber landing page in austin",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Copywriting task. The skill documents that no 155-char limit exists, but the ask is to produce copy, not to consult policy."
+    },
+    {
+      "query": "how do i add google analytics 4 to my next.js app",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Analytics integration. Mentions Google, but not Search."
+    },
+    {
+      "query": "what keyword should i target for a specialty coffee shop",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Keyword research — this skill has no keyword data and does not claim any."
+    },
+    {
+      "query": "make our react nav keyboard accessible please",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Accessibility implementation."
+    },
+    {
+      "query": "can you take the hreflang tags i have and generate the ones for three more locales",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Pure codegen from existing annotations. Adjacent to the skill's content; does not need Google's documented position."
+    },
+    {
+      "query": "set up a google business profile for my new bakery",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Support/product task, not Search documentation."
+    },
+    {
+      "query": "what was our organic traffic last quarter compared to the year before",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Reporting question about the user's own data."
+    },
+    {
+      "query": "deploy this static site to vercel and give me the preview url",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Deployment."
+    }
+  ]
+}
