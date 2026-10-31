@@ -238,6 +238,11 @@ npx skills add mwasobaddy/skills --skill '*'
 agents detected on the machine and pre-checks them. Agent paths come from the `npx skills`
 CLI — note Codex reads `~/.agents/skills`, not `~/.codex/skills`.
 
+**Updating.** Symlinked installs update with `git pull`. `./scripts/update.sh` does the pull,
+re-links into every detected agent, validates all skills, and runs their self-tests.
+Do not run `npx skills update -g` on a symlinked skill: the CLI installs copies and will
+replace the symlink, after which repo edits stop propagating.
+
 ---
 
 ## 8. Rules summary

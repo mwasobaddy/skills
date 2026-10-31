@@ -15,7 +15,7 @@ skills/
 ├── PITFALLS.md                # error classes we've hit, and how to avoid repeating them
 ├── README.md                  # this file + skill registry
 ├── templates/skill-template/  # scaffolding source
-├── scripts/                   # new-skill.sh · validate-skill.sh · install.sh
+├── scripts/                   # new-skill.sh · validate-skill.sh · install.sh · update.sh
 └── <skill-name>/              # one folder per skill, committed here
 ```
 
@@ -38,6 +38,29 @@ npx skills add mwasobaddy/skills --skill '*'
 ```
 
 Add `-g` for a global install, or `-a claude-code` to target specific agents.
+
+## Update
+
+How you update depends on how you installed, because the two mechanisms differ:
+
+| Installed with | Update with | Notes |
+| --- | --- | --- |
+| `./scripts/install.sh` (symlinks) | `git pull` | Live immediately. Nothing else to do. |
+| `npx skills add` (copies) | `npx skills update -g -y` | Copies do not track repo edits. |
+| Project `.ai/skills/` (Boost) | re-copy, then `php artisan boost:update` | See the skill's `install-to-project.sh`. |
+
+One command for this machine — pulls, re-links every skill into the detected agents,
+validates each, and runs the self-tests:
+
+```bash
+./scripts/update.sh            # pull + relink + validate + selftest
+./scripts/update.sh --check    # is there anything new? changes nothing
+./scripts/update.sh --relink   # refresh symlinks after installing a new agent
+```
+
+It warns you if a skill is also tracked by the `npx skills` lockfile, because
+`npx skills update -g` installs **copies** and would silently replace the symlink — after
+which repo edits stop reaching the agent.
 
 Locally, symlinking the folder so edits take effect immediately:
 

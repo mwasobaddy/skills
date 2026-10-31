@@ -202,10 +202,12 @@ skill_names() {
 # --- args -------------------------------------------------------------------------
 AGENTS_ARG=""
 TARGET=""
+ALL_DETECTED=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --agents) AGENTS_ARG="$2"; shift 2 ;;
+    --all-detected) ALL_DETECTED=1; shift ;;
     --list)
       printf 'Agents this script knows about:\n\n'
       for entry in "${AGENTS[@]}"; do
@@ -237,6 +239,11 @@ if [ -n "$AGENTS_ARG" ]; then
   # Accept commas or spaces. `npx skills add` requires a repeated -a flag per agent and
   # rejects a comma list outright, so both spellings turn up in practice.
   read -r -a SELECTED <<< "$(printf '%s' "$AGENTS_ARG" | tr ',' ' ')"
+elif [ "$ALL_DETECTED" = "1" ]; then
+  SELECTED=()
+  for entry in "${AGENTS[@]}"; do
+    agent_exists "$entry" && SELECTED+=("$(field "$entry" 1)")
+  done
 else
   read -r -a SELECTED <<< "$(choose_agents)"
 fi
