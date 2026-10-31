@@ -31,6 +31,8 @@ Each row is a claim you will otherwise repeat. The right column is what the docu
 | "FAQ rich results need `FAQPage` markup" | Retired. The FAQ rich result was removed; the doc now redirects to the news page. |
 | "Add `HowTo` schema for step lists" | Retired. Same — `HowTo` rich results were removed. |
 | "Set a 155-character meta description" | "There's no limit on how long a meta description can be." Truncation is visual, to fit the device. |
+| "Titles must be 50–60 characters" | No minimum exists. Truncation is the only constraint — "typically to fit the device width." A 22-character title is not a defect if it describes the page. |
+| "Descriptions must be 140–160 characters" | The band is folklore. A 59-character description is not a defect; only truncation past the device width matters. |
 | "Meta keywords help ranking" | "has no effect on indexing and ranking at all." |
 | "Duplicate content gets a penalty" | "Some duplicate content on a site is normal and it's not a violation of Google's spam policies." |
 | "`rel=canonical` tells Google which URL to use" | It is "a hint, not a rule." Google may pick a different canonical. |
