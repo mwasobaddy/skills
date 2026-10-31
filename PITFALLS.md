@@ -192,6 +192,19 @@ are invisible.
 Test by running the documented command from a *different* directory. A command verified only from the
 skill folder is unverified.
 
+**The same trap at repo level.** After removing a CLI-managed skill I told the user to run
+`./scripts/install.sh nextjs-i18n --all-detected`. They were in their project directory, so zsh said
+`no such file or directory` — which reads like a missing script, not a wrong directory. The script
+resolves its own location and works from anywhere when invoked by absolute path.
+
+Every documented command must carry one of:
+
+- an absolute path (`~/Desktop/skills/scripts/install.sh`), or
+- an explicit `cd` in the same code block, or
+- a stated precondition ("run from the repo root").
+
+Bare `./scripts/…` has none of those and is only ever correct by accident.
+
 ## 5. macOS `find -regex` is BRE — no alternation
 
 **What happened.** `find . -regex ".*\.\(tsx|jsx|ts\)$"` matched nothing on macOS. BSD

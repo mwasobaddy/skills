@@ -228,11 +228,17 @@ npx skills add mwasobaddy/skills --skill '*'
 **Local symlink** (live editing on this machine):
 
 ```bash
+cd ~/Desktop/skills                   # repo-relative from here down
 ./scripts/install.sh                  # interactive agent picker
 ./scripts/install.sh --list           # agents detected here, and their skill dirs
 ./scripts/install.sh --agents claude-code,opencode
 ./scripts/install.sh <skill-name>
+./scripts/install.sh <skill-name> --all-detected
 ```
+
+Invoking by absolute path (`~/Desktop/skills/scripts/install.sh …`) works from any
+directory; a bare `./scripts/install.sh` does not, and that failure looks like a missing
+file rather than a wrong directory.
 
 `install.sh` links directly at this repo, so edits need no reinstall. It picks only from
 agents detected on the machine and pre-checks them. Agent paths come from the `npx skills`

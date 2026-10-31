@@ -45,7 +45,7 @@ How you update depends on how you installed, because the two mechanisms differ:
 
 | Installed with | Update with | Notes |
 | --- | --- | --- |
-| `./scripts/install.sh` (symlinks) | `git pull` | Live immediately. Nothing else to do. |
+| `install.sh` (symlinks) | `git pull` | Live immediately. Nothing else to do. |
 | `npx skills add` (copies) | `npx skills update -g -y` | Copies do not track repo edits. |
 | Project `.ai/skills/` (Boost) | re-copy, then `php artisan boost:update` | See the skill's `install-to-project.sh`. |
 
@@ -53,10 +53,14 @@ One command for this machine — pulls, re-links every skill into the detected a
 validates each, and runs the self-tests:
 
 ```bash
-./scripts/update.sh            # pull + relink + validate + selftest
-./scripts/update.sh --check    # is there anything new? changes nothing
-./scripts/update.sh --relink   # refresh symlinks after installing a new agent
+~/Desktop/skills/scripts/update.sh            # pull + relink + validate + selftest
+~/Desktop/skills/scripts/update.sh --check    # is there anything new? changes nothing
+~/Desktop/skills/scripts/update.sh --relink   # refresh symlinks after installing a new agent
 ```
+
+Absolute paths work from any directory, because the scripts resolve their own location.
+`./scripts/…` works **only** if you are already inside the repo — the scripts therefore
+never document themselves that way.
 
 It warns you if a skill is also tracked by the `npx skills` lockfile, because
 `npx skills update -g` installs **copies** and would silently replace the symlink — after
@@ -65,6 +69,7 @@ which repo edits stop reaching the agent.
 Locally, symlinking the folder so edits take effect immediately:
 
 ```bash
+cd ~/Desktop/skills                   # the commands below are repo-relative
 ./scripts/install.sh                  # interactive picker, detected agents pre-checked
 ./scripts/install.sh nextjs-i18n      # a specific skill
 ./scripts/install.sh --all            # every skill, same agents
