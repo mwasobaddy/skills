@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "skill": "laravel-feature-slice",
+    "purpose": "Trigger evals for the SKILL.md description. A query passes when the skill is loaded exactly as should_trigger expects, measured as a trigger rate over N runs.",
+    "method": "https://agentskills.io/skill-creation/optimizing-descriptions",
+    "runs_per_query": 3,
+    "threshold": 0.5,
+    "split_policy": "Fixed at 12 train / 8 validation (60/40). Never optimize against the validation set — it exists only to detect overfitting. Keep the split stable across iterations so runs are comparable.",
+    "how_to_read_failures": {
+      "should_trigger_false": "Description too narrow. It should fire on structure decisions (where does this file go, what files does this feature need), not only on the words 'architecture' or 'refactor'.",
+      "should_trigger_low_rate": "Nondeterminism. Re-run before editing the description.",
+      "should_not_trigger_true": "Description too broad. Laravel Boost already covers framework usage — queries, deployment, packages, queue config. This skill should not load for those."
+    },
+    "known_risks": [
+      "P4 ('add login') is the highest-value trigger: the wrong answer is to write a LoginController over Fortify. It must fire to prevent that.",
+      "P5 and P11 mention validation only, no architecture vocabulary. They test whether the dual-validation half of the description fires on its own.",
+      "N1 and N5 are Laravel questions that Boost answers better. If these start triggering, the description has drifted toward 'anything Laravel'.",
+      "N6 and N8 are infrastructure and other-framework asks, included to catch a description that fires on 'queue' or 'validation' as bare nouns."
+    ],
+    "results": []
+  },
+  "queries": [
+    {
+      "query": "implement a multi step onboarding flow for new users with validation on each step",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Canonical positive: a feature that needs a full slice, not one controller."
+    },
+    {
+      "query": "my OnboardingController is 400 lines and does everything. how do i break it up?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "The exact failure this skill exists for."
+    },
+    {
+      "query": "where should business logic live in laravel, the controller or the model?",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Layer placement question, no file names mentioned."
+    },
+    {
+      "query": "add login and registration to my laravel app",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Trap: the correct answer is Fortify customisation, not a new controller."
+    },
+    {
+      "query": "we need validation on the signup form in both the backend and the inertia react form so errors show per field",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Dual validation. Tests whether the frontend half of the description fires."
+    },
+    {
+      "query": "what files do i need to add a stripe payment step to checkout",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Manifest question: actions, jobs, events, migration, resource, tests."
+    },
+    {
+      "query": "review this controller for separation of concerns",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Review intent, not implementation intent."
+    },
+    {
+      "query": "how should i structure a livewire component for a wizard with server side validation",
+      "should_trigger": true,
+      "split": "train",
+      "note": "Livewire branch of the skill."
+    },
+    {
+      "query": "should this be a service class or an action class",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Direct layer-choice question with no other context."
+    },
+    {
+      "query": "i need a policy so users can only edit their own profile, and the form request should use it",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Authorization placement across two layers."
+    },
+    {
+      "query": "our validation rules are duplicated between the form request and the react form and they ve drifted",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "The dual-validation contract, stated as a bug report."
+    },
+    {
+      "query": "how do you organise enums and dtos in a laravel project",
+      "should_trigger": true,
+      "split": "validation",
+      "note": "Folder conventions, no framework-version vocabulary."
+    },
+    {
+      "query": "write an eloquent query to get users who have never placed an order",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Query help. Boost's docs search is the right source."
+    },
+    {
+      "query": "how do i set up a queue worker with supervisor on ubuntu",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Server infrastructure, not application structure."
+    },
+    {
+      "query": "which package should i use for subscription billing",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Package selection is explicitly out of scope."
+    },
+    {
+      "query": "how do i deploy a laravel app to a vps with nginx and php fpm",
+      "should_trigger": false,
+      "split": "train",
+      "note": "Deployment."
+    },
+    {
+      "query": "explain how the laravel service container resolves dependencies",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Concept explanation. Boost covers framework internals."
+    },
+    {
+      "query": "how do i make a next.js api route that calls my laravel backend",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Other framework."
+    },
+    {
+      "query": "convert this php array into a json response with a 201 status",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Trivial one-liner; no structural decision."
+    },
+    {
+      "query": "how do i configure horizon to use a separate redis connection",
+      "should_trigger": false,
+      "split": "validation",
+      "note": "Queue configuration — Boost territory."
+    }
+  ]
+}
