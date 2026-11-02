@@ -23,6 +23,8 @@ Action → Policy → Controller → Route → Resource → frontend types → p
 - **Thin controllers** — before/after code showing the same feature done both ways.
 - **Dual validation** — server rules are authoritative, client rules mirror them; a table of what
   goes where, for Inertia and Livewire.
+- **Starter-kit aware** — detects Inertia (React/Vue/Svelte) or Livewire and loads only that stack's
+  file-placement rules, without forking the skill.
 - **Don't rebuild auth** — all starter kits ship Fortify; the login slice is customisation, not a
   new `LoginController`.
 - **A checker** — flags the drift mechanically: inline validation, Eloquent writes in controllers,
@@ -41,7 +43,7 @@ Complementary, not competing. Boost ships **descriptive** framework guidance and
 its `infer-conventions` skill records what your codebase already does — including bad patterns.
 
 This skill is **prescriptive**: a target architecture, and the file manifest per feature. Install
-both. Boost answers "how does Inertia's `useForm` work"; this answers "what files does this feature
+both. Boost answers "how does Inertia's `<Form>` work"; this answers "what files does this feature
 need".
 
 ## Install
@@ -85,7 +87,9 @@ behaviour, query performance, or whether the business rules are right.
 - `references/layers.md` — the directory map plus the rule and code shape for each layer
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
 - `references/refactoring-an-existing-app.md` — audit → triage → fix, with the fix for every rule
-- `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
+- `references/starter-kits.md` — detect the installed kit, Fortify, dual validation, shared rules
+- `references/inertia.md` — React/Vue/Svelte pages, controllers, `<Form>` + Wayfinder, tests
+- `references/livewire.md` — Livewire 4 component formats, page routes, validation, tests
 - `references/laravel-13-boost.md` — Laravel 13 changes, and wiring this into Boost and project rules
 - `scripts/laravel_audit.py` — the checker, with `--selftest`
 - `scripts/install-to-project.sh` — copy the skill into a Laravel app's `.ai/skills/` for Boost
@@ -94,8 +98,8 @@ behaviour, query performance, or whether the business rules are right.
 ## Testing
 
 `--selftest` builds a deliberately bad Laravel slice and a clean one, then asserts the expected rules
-fire and the clean slice produces no errors. Verified against a fixture app with a fat onboarding
-controller, a valid Form Request, a model, and routes.
+fire and the clean slice produces no errors. Verified against fixture apps with a fat onboarding
+controller, a valid Form Request, a model, routes, and both Inertia and Livewire page resolution.
 
 ## Scope
 

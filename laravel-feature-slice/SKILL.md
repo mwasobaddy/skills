@@ -1,6 +1,6 @@
 ---
 name: laravel-feature-slice
-description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant codebases. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where a tenant is identified by subdomain, custom domain, URL path, or a tenant column, and where roles, permissions or policies decide what a member may do. Starts with a discovery pass that detects the app's tenancy model, authorization tiers, base classes, money representation and frontend stack before any code is written, then gives the file manifest for Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models and tests, with backend and frontend validation on both sides. Works with stancl/tenancy, spatie multitenancy, custom organization scoping, and single-tenant Laravel apps. Targets Laravel 13 and Laravel Boost.
+description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant codebases. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where a tenant is identified by subdomain, custom domain, URL path, or a tenant column, and where roles, permissions or policies decide what a member may do. Starts with a discovery pass that detects the app's tenancy model, authorization tiers, base classes, money representation and frontend stack before any code is written, then gives the file manifest for Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models and tests, with backend and frontend validation on both sides. Works with stancl/tenancy, spatie multitenancy, custom organization scoping, and single-tenant Laravel apps. Covers the official Inertia React/Vue/Svelte and Livewire 4 starter kits. Targets Laravel 13 and Laravel Boost.
 license: MIT
 metadata:
   author: mwasobaddy
@@ -63,6 +63,9 @@ Full model, the "adding a permission" sequence, and the mistake table: `referenc
 Everything else follows from that. If a controller method contains a rule, a query, or a write, the
 slice is wrong.
 
+In a Livewire feature the full-page component is the entrypoint, and the controller and Form Request
+disappear. The Action, Policy, and one server-side rule set do not.
+
 ## Build order
 
 Never start with the page. Each layer's contract determines the next.
@@ -81,7 +84,11 @@ Never start with the page. Each layer's contract determines the next.
 | 10 | Resource | JSON response shape | `app/Http/Resources/{Domain}` |
 | 11 | Frontend types | Mirror the DTO | `resources/js/types` |
 | 12 | Frontend page | Form with mirrored validation | per starter kit |
-| 13 | Tests | Feature per action, unit per Action | `tests/` |
+| 13 | Tests | Feature per entrypoint, unit per Action | `tests/` |
+
+In a Livewire feature, steps 5, 8 and 12 collapse into one full-page component, and step 9 becomes
+`Route::livewire(...)`. Everything else — the Action, Policy, enum, DTO, resource and tests — is
+unchanged.
 
 Full manifests for login, onboarding, and a paid order: `references/feature-manifest.md`.
 
@@ -99,7 +106,7 @@ Most apps have conventions older than this skill, often written into `.ai/rules`
 | `tests/Unit` doesn't boot Laravel | Bind `Unit/Actions` to the TestCase, or use Feature for actions that hit the DB. |
 | Authorization returns redirect + toast, not 403 | Assert the redirect, the toast, **and** that nothing was written. |
 | Tenancy is ambient | Pass the tenant id in the DTO; keep the context out of Actions. |
-| Wayfinder typed routes | `php artisan wayfinder:generate` after adding routes. |
+| Wayfinder typed routes | `npm run dev` or `npm run build` regenerates them; use `php artisan wayfinder:generate --with-form` for a one-off. After a deploy with cached routes, `php artisan route:clear` first. |
 
 Full detail: `references/adapting-to-an-app.md`. Whatever you decide, write it to a rule file so the
 next agent doesn't resolve the same conflict differently.
@@ -138,7 +145,7 @@ rules — never replace them, never carry business logic.
 
 | | Server | Client |
 | --- | --- | --- |
-| Where | `rules()` in a Form Request | `useForm` (Inertia) or `rules()`/`#[Validate]` (Livewire) |
+| Where | `rules()` in a Form Request, or a shared `app/Concerns` trait | `<Form>` + Wayfinder `.form()` (Inertia), or `#[Validate]`/`rules()` (Livewire) |
 | Authority | Yes | No |
 | Uniqueness | `unique:` | not duplicated client-side |
 | Errors | 422 + field errors | field-level messages |
@@ -237,8 +244,9 @@ Inertia, Livewire and test checks, and the user will believe the app passed them
 
 Flags inline validation, Eloquent writes in controllers, raw `Request` injection, Form Requests
 missing `rules()`/`authorize()`, oversize controllers/models/actions, `env()` outside config, `dd()`
-left in, routes pointing at missing classes or methods, `Inertia::render()` targets with no page
-component, Livewire views that don't exist, and controllers with no test.
+left in, routes pointing at missing classes or methods, `Inertia::render()` or `Route::inertia()`
+targets with no page component, `Route::livewire()` targets with no component view, and entrypoints
+with no test.
 
 Two deliberate carve-outs: `index`/`show`/`create`/`edit` may take a raw `Request` (filters and
 pagination have no Form Request) and are exempt from the method-length rule. A Form Request type-hint
@@ -257,11 +265,15 @@ caused them rather than each instance.
 
 ## Starter kits
 
-React, Vue, and Svelte use Inertia with `resources/js/{pages,components,layouts,hooks,types}`.
-Livewire uses `resources/views/{pages,livewire,components}` with components in `app/Livewire`.
-Detect from `composer.json`/`package.json` — never from the folder name.
+React, Vue, and Svelte use Inertia 3 with `resources/js/{pages,components,layouts,hooks,types}` plus
+generated `resources/js/{wayfinder,actions,routes}`. Livewire 4 uses full-page components in
+`resources/views/pages` with `Route::livewire(...)`; `app/Livewire` is optional.
 
-Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
+Detect from `composer.json`/`package.json` and the existing directories — never from the folder name.
+A project can mix the two; match the surrounding feature.
+
+Read one: `references/inertia.md` or `references/livewire.md`. Detection and shared validation:
+`references/starter-kits.md`.
 
 ## Reference map
 
@@ -275,13 +287,16 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
 | `references/migrating-services-to-actions.md` | You are converting an existing service layer to Actions, per use case |
 | `references/refactoring-an-existing-app.md` | Auditing a real app — triage order, the fix for each rule, one commit per change |
-| `references/starter-kits.md` | Frontend work — Inertia or Livewire, and dual validation |
+| `references/starter-kits.md` | First frontend decision — detect the installed kit, auth, dual validation, shared rules |
+| `references/inertia.md` | The app uses Inertia (React, Vue, or Svelte) — pages, controllers, forms, Wayfinder |
+| `references/livewire.md` | The app uses Livewire — component formats, page routes, validation, tests |
 | `references/laravel-13-boost.md` | Laravel 13 specifics, or wiring this into Laravel Boost and project rules |
 
 ## Version and scope
 
-Targets **Laravel 13** (PHP 8.3+, released March 2026) and the official starter kits. For Laravel 10
-or 11, adjust: there is no `#[Authorize]` attribute, and `app/Http/Kernel.php` still exists in 10.
+Targets **Laravel 13** (PHP 8.3+, released March 2026) and the official starter kits (Inertia 3 and
+Livewire 4). For Laravel 10 or 11, adjust: there is no `#[Authorize]` attribute, and
+`app/Http/Kernel.php` still exists in 10.
 
 Covers structure, validation, and authorization. Not covered: deployment, queues infrastructure,
 performance tuning, or package selection — those are separate decisions with their own tradeoffs.

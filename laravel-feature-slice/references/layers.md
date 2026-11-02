@@ -334,7 +334,8 @@ queued.
 
 ## Tests
 
-- **Feature test per controller action** — the HTTP contract, validation, authorization, redirect.
+- **Feature test per entrypoint** — the HTTP contract, validation, authorization, redirect. In
+  Livewire that is an HTTP GET for the page plus `Livewire::test()` for each interaction.
 - **Unit test per Action** with branching logic — no HTTP. Check whether `tests/Unit` actually boots
   the app first: in many projects only `tests/Feature` is bound to `Tests\TestCase`, so an Action that
   touches Eloquent fails there with a confusing "no application" error. Either bind the Actions

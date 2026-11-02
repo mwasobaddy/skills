@@ -120,16 +120,23 @@ only thing standing between a scoping change and an incident.
 
 ## Route helpers (Wayfinder)
 
-If the app uses Wayfinder, typed route imports are **generated**, not static. After adding or renaming
-a route, run:
+If the app uses Wayfinder, typed route imports are **generated**, not static. They land in
+`resources/js/{wayfinder,actions,routes}`, which the starter kits gitignore.
+
+The Vite plugin regenerates them on dev-server start and during a build, so a normal `npm run dev` or
+`npm run build` is enough. For a one-off generation, or a CI build that does not run Vite:
 
 ```bash
-php artisan wayfinder:generate
+php artisan wayfinder:generate --with-form
 ```
 
-until the TypeScript imports resolve. A missing generated route looks like a broken import, so run
-this before debugging the frontend. The Vite plugin regenerates on dev-server start; a one-off build
-or CI run needs the artisan command.
+`--with-form` is required for the `form()` variant the starter kits use. If a generated import is
+missing after a deploy, clear the cached routes before rebuilding — Wayfinder reads the registered
+router, and a stale route cache silently omits new routes:
+
+```bash
+php artisan route:clear && npm run build
+```
 
 ## Recording the decisions
 

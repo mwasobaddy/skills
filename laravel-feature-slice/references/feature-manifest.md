@@ -16,15 +16,19 @@ five `User::create()` calls, and a page. Everything below is the alternative, in
 | 2 | Model | Casts, relations, scopes, `$fillable` | Defines the vocabulary |
 | 3 | Enums | Backed enums for any fixed set | Kills magic strings before they spread |
 | 4 | DTO | `final readonly` data object | The contract between request and action |
-| 5 | Form Request | `rules()` + `authorize()` | Server-side validation and authorization |
+| 5 | Form Request *(Inertia)* | `rules()` + `authorize()` | Server-side validation and authorization |
 | 6 | Actions | One class per use case | The only place business logic lives |
 | 7 | Policy | `viewAny/view/create/update/delete` | Authorization, separate from validation |
-| 8 | Controller | 1–15 line methods | Routes the request; contains no logic |
+| 8 | Controller *(Inertia)* | 1–15 line methods | Routes the request; contains no logic |
 | 9 | Route | Named route | The public URL contract |
 | 10 | Resource | API/JSON:API serialization | Shapes the response |
 | 11 | Frontend types | TypeScript/Livewire props | Mirrors the DTO, not the DB |
 | 12 | Frontend pages | Form with matching validation | Consumes the contract |
-| 13 | Tests | Feature per action, unit per action class | Proves the slice |
+| 13 | Tests | Feature per entrypoint, unit per action class | Proves the slice |
+
+In a Livewire feature, rows 5, 8 and 12 collapse into one full-page component and row 9 becomes
+`Route::livewire(...)`. The Action, Policy, enum, DTO and resource layers are unchanged. See
+`references/livewire.md`.
 
 ---
 
@@ -43,7 +47,7 @@ Fortify and is the single most common wrong turn here.
 | `app/Actions/Fortify/PasswordValidationRules.php` | Shared password rules — the one place to change them |
 | `app/Providers/FortifyServiceProvider.php` | Rate limiter, view bindings, login response |
 | `resources/js/pages/auth/login.tsx` *(React/Vue/Svelte)* | Use the existing page; adjust fields only |
-| `resources/views/livewire/auth/login.blade.php` *(Livewire)* | Same |
+| `resources/views/pages/auth/login.blade.php` *(Livewire)* | Blade posting to Fortify; adjust fields only |
 | `tests/Feature/Auth/AuthenticationTest.php` | Extend the shipped test |
 
 Create a `LoginController` **only** when you are not using Fortify.
@@ -78,14 +82,18 @@ tests/Feature/Onboarding/OnboardingFlowTest.php
 tests/Unit/Actions/Onboarding/CompleteOnboardingTest.php
 ```
 
-Livewire replaces the last four `resources/js/*` entries with:
+Livewire replaces the frontend tail — `resources/js/*` and the controller — with a full-page
+component. The Action, Policy, DTO and route contract remain:
 
 ```
-resources/views/pages/onboarding/wizard.blade.php
-resources/views/livewire/onboarding/step-form.blade.php
-app/Livewire/Onboarding/Wizard.php
-app/Livewire/Onboarding/StepForm.php
+resources/views/pages/onboarding/wizard.blade.php      # full-page component (project's format)
+resources/views/components/onboarding/step-form.blade.php
+app/Concerns/OnboardingValidationRules.php             # shared only if a controller also validates
+routes/web.php                                         # Route::livewire('onboarding', 'pages::onboarding.wizard')
 ```
+
+`app/Livewire` and `resources/views/livewire` are only for class-based components; do not add them to
+a kit that uses single-file components.
 
 ---
 
@@ -144,13 +152,14 @@ Before declaring a feature done:
 - [ ] Migration with the right indexes and FK constraints
 - [ ] Model with `$fillable`/`$guarded`, casts, relations
 - [ ] Enums for every fixed set of values
-- [ ] Form Request with `rules()` **and** `authorize()`
+- [ ] Form Request with `rules()` **and** `authorize()` *(Inertia)*, or component validation sharing
+      one server-side rule source *(Livewire)*
 - [ ] Frontend validation mirroring the server rules, with field-level errors
 - [ ] At least one Action per write path
 - [ ] The right authorization tier: sub-permission for org-scoped actions, policy for record-level, platform role only for operator surfaces (`references/authorization.md`)
-- [ ] Controller methods under 15 lines, no `validate()`, no `::create()`
+- [ ] Controller methods under 15 lines, no `validate()`, no `::create()` *(Inertia)*
 - [ ] Named routes
 - [ ] Resource if the endpoint returns JSON
-- [ ] Feature test hitting the HTTP route
+- [ ] Feature test hitting the route *(Livewire: plus `Livewire::test()` for each interaction)*
 - [ ] Unit test for any Action with branching logic
 - [ ] Both success and failure paths tested

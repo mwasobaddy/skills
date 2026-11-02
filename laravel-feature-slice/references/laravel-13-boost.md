@@ -46,7 +46,7 @@ the pattern. Neither one tells an agent "for this feature, produce these 14 file
 
 That is the gap this skill fills. It is **prescriptive**: a target architecture, not an observation.
 
-Do not duplicate Boost. If the question is "how do I use Inertia's `useForm`", the Boost
+Do not duplicate Boost. If the question is "how do I use Inertia's `<Form>`", the Boost
 `inertia-react-development` skill is the better source. If the question is "what files does an
 onboarding flow need", this one is.
 
@@ -105,6 +105,10 @@ it belongs to Boost, not here.
 One exception: custom Eloquent builders (`#[UseEloquentBuilder]`) are public API but appear in neither
 the docs nor Boost's guidelines, which still say "prefer local scopes". The *choice* of when to
 escalate lives here (`references/layers.md`); the mechanics stay with Boost and the framework source.
+
+A second: the React/Vue/Svelte kits ship **Inertia 3**, while Boost's `inertia-react-development`
+skill still describes Inertia 2. The kit shape — `Route::inertia()`, `<Form>` with Wayfinder's
+`.form()` variant, generated `resources/js/{routes,actions}` — lives in `references/inertia.md`.
 
 ## Practical setup order
 
