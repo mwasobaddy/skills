@@ -291,6 +291,10 @@ class LaravelAudit:
                 src = read(path)
                 code = strip_php(src)
                 r = rel(self.root, path)
+                # Traits under Concerns/ hold shared helpers, not use cases. They have
+                # no entrypoint by design and are not Actions.
+                if re.search(r"^\s*trait\s+\w+", code, re.M) or "/Concerns/" in r.replace("\\", "/"):
+                    continue
                 self.checked += 1
                 lines = src.count("\n") + 1
                 if lines > self.ACTION_WARN:
