@@ -1,13 +1,13 @@
 ---
 name: laravel-feature-slice
-description: Structure Laravel features so controllers stay thin and every layer exists. Use when implementing or reviewing a Laravel feature — login, onboarding, CRUD, payments, admin — and you need the complete file manifest, covering Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models, tests, and the matching React, Vue, Svelte or Livewire pages with backend and frontend validation on both sides. Also use when fixing bulky controllers, inline validation, or business logic leaking into the wrong layer. Targets Laravel 13 and the official starter kits, and composes with Laravel Boost.
+description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant Laravel apps that use stancl/tenancy with subdomain identification. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where the host identifies the tenant and changes after login, for example https://kelvin-properties.malimanager.test/kelvin-properties-residences/dashboard, with the first path segment being the property or workspace. Covers the app directory structure and what each layer does, plus the file manifest for Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models, tests, and the matching React, Vue, Svelte or Livewire pages with backend and frontend validation on both sides. Also use when fixing bulky controllers, inline validation, business logic in the wrong layer, or cross-tenant data leaks. Targets Laravel 13 and Laravel Boost.
 license: MIT
 metadata:
   author: mwasobaddy
   version: "1.0"
 ---
 
-# Laravel feature slices
+# Laravel feature slices for multi-tenant apps
 
 The default failure mode of AI-assisted Laravel is one controller doing everything: `$request->validate()`,
 three `Model::create()` calls, a mail, and a redirect — 300 lines, untestable, and impossible to reuse.
@@ -15,6 +15,25 @@ This skill makes a feature a **slice of files**, each with one job.
 
 It is prescriptive on purpose. Laravel Boost already ships descriptive framework guidance; use that
 for "how does Inertia work". Use this for "what files does this feature need, and what goes in each".
+
+## Tenant context comes first
+
+This is a **multi-tenant** application using `stancl/tenancy` v3 with **subdomain identification**.
+Before designing anything, answer three questions:
+
+1. **Which host does this live on?** Central (`malimanager.test`) or tenant
+   (`{org-slug}.malimanager.test`). They use different route files and different middleware.
+2. **How is tenant identity proven?** From the host — never from a request parameter. Read it through
+   `App\Support\TenancyContext`.
+3. **What scoping does every query need?** `DatabaseTenancyBootstrapper` is **disabled**, so all
+   tenants share one database and nothing is scoped for you.
+
+A feature that ignores these three is wrong even if it passes its tests, because the failure mode is
+cross-tenant data exposure.
+
+The full model — hosts, the login → tenant-subdomain flow, disabled bootstrappers, queue context,
+testing, and the common mistakes — is in `references/multitenancy.md`. Read it before any feature that
+touches tenant data.
 
 ## The one rule
 
@@ -223,6 +242,8 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | File | Read it when |
 | --- | --- |
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
+| `references/app-structure.md` | Which directory a piece of code belongs in, and what each layer does |
+| `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
 | `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
 | `references/migrating-services-to-actions.md` | You are converting an existing service layer to Actions, per use case |

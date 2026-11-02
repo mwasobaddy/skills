@@ -1,7 +1,8 @@
 # laravel-feature-slice
 
-A prescriptive architecture for Laravel features: every file that should exist, in the order it
-should be written, with the controller reduced to routing.
+A prescriptive architecture for Laravel features on **multi-tenant** apps (stancl/tenancy, subdomain
+identification): every file that should exist, in the order it should be written, with the controller
+reduced to routing and tenant scoping made explicit.
 
 ## The problem it solves
 
@@ -76,6 +77,8 @@ behaviour, query performance, or whether the business rules are right.
 - `references/feature-manifest.md` — exact file lists for login, onboarding, and a paid order, plus what not to create
 - `references/layers.md` — every layer: rule, code shape, anti-pattern
 - `references/adapting-to-an-app.md` — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder
+- `references/multitenancy.md` — stancl/tenancy subdomain model, the login → tenant flow, scoping rules, queues, cross-tenant tests
+- `references/app-structure.md` — the full `app/` directory map and what each layer does
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
 - `references/laravel-13-boost.md` — Laravel 13 changes, and wiring this into Boost and project rules
