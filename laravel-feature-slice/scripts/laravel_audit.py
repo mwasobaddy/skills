@@ -452,18 +452,23 @@ def report(findings, checked, out_json=None, baseline=None, fail_on_new=False):
 
     delta = None
     if baseline:
-        base = {(b["rule"], b["file"]): b["severity"]
-                for b in baseline.get("findings", [])}
-        now = {(f.rule, f.file): f.severity for f in findings}
-        new = {k: v for k, v in now.items() if k not in base}
-        fixed = {k: v for k, v in base.items() if k not in now}
-        new_err = sum(1 for v in new.values() if v == ERROR)
-        new_warn = sum(1 for v in new.values() if v == WARN)
-        fixed_err = sum(1 for v in fixed.values() if v == ERROR)
-        fixed_warn = sum(1 for v in fixed.values() if v == WARN)
+        # Compare multiplicitly, not as a set: one file can produce several findings for the
+        # same rule (four methods flagged raw-request-parameter), and a set collapse reports
+        # a 69-finding drop as 49 and hides a newly-added instance in an already-flagged file.
+        base = Counter((b["rule"], b["file"]) for b in baseline.get("findings", []))
+        now = Counter((f.rule, f.file) for f in findings)
+        introduced = {k: now[k] - base.get(k, 0) for k in now if now[k] > base.get(k, 0)}
+        resolved = {k: base[k] - now.get(k, 0) for k in base if base[k] > now.get(k, 0)}
+        sev = {(f.rule, f.file): f.severity for f in findings}
+        bsev = {(b["rule"], b["file"]): b["severity"] for b in baseline.get("findings", [])}
+        new_err = sum(v for k, v in introduced.items() if sev.get(k) == ERROR)
+        new_warn = sum(v for k, v in introduced.items() if sev.get(k) == WARN)
+        fixed_err = sum(v for k, v in resolved.items() if bsev.get(k) == ERROR)
+        fixed_warn = sum(v for k, v in resolved.items() if bsev.get(k) == WARN)
         delta = {"introduced_errors": new_err, "introduced_warnings": new_warn,
                  "resolved_errors": fixed_err, "resolved_warnings": fixed_warn,
-                 "introduced": [{"rule": r, "file": f} for (r, f) in sorted(new)]}
+                 "introduced": [{"rule": r, "file": f, "count": v}
+                                for (r, f), v in sorted(introduced.items())]}
         print(f"\nvs baseline   introduced: {new_err} errors, {new_warn} warnings"
               f"    resolved: {fixed_err} errors, {fixed_warn} warnings")
         print("  (score is absolute and floors on legacy debt; the delta is the progress signal)")
