@@ -68,6 +68,34 @@ Adapt the names to the stack; the order matters.
 Changing a permission catalog is a platform-wide contract. Treat new keys as an additive migration, not
 a rename.
 
+## When the route middleware is the gate
+
+Some apps enforce authorization in route middleware (`sub.permission:occupant.delete`) and leave the
+Form Request with nothing to check. That is a valid design — but a bare `return true` is
+indistinguishable from a missing check, so the next reader cannot tell whether it was decided or
+forgotten.
+
+Say which, in the method:
+
+```php
+public function authorize(): bool
+{
+    // Enforced by the `sub-permission:occupant.delete` middleware on the route;
+    // this form is not a second gate.
+    return true;
+}
+```
+
+The auditor reports `authorize-always-true` as **info**, not a defect, precisely because this comment is
+the evidence that it was a decision. Without the comment the info is the only signal, and a reader has to
+guess.
+
+Two rules that follow:
+
+- If the route gate is the enforcement point, the Form Request must not silently duplicate it in a way
+  that can drift — name the gate instead.
+- If no gate exists on the route, `return true` is a hole. Check before writing it.
+
 ## Tests that actually prove it
 
 ```php
