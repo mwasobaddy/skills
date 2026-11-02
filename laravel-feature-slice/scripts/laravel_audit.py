@@ -374,7 +374,9 @@ class LaravelAudit:
                 found = False
                 for base in roots:
                     for cand in (page, page.lower(), page[0].lower() + page[1:]):
-                        if any(os.path.exists(os.path.join(base, cand + e)) for e in exts):
+                        # Inertia resolves `a/b` to either a/b.tsx or a/b/index.tsx
+                        if any(os.path.exists(os.path.join(base, cand + e)) for e in exts) or \
+                           any(os.path.exists(os.path.join(base, cand, "index" + e)) for e in exts):
                             found = True
                             break
                     if found:

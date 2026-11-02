@@ -84,6 +84,7 @@ behaviour, query performance, or whether the business rules are right.
 - `references/authorization.md` — the three tiers: coarse role, scoped permission, policy
 - `references/layers.md` — the directory map plus the rule and code shape for each layer
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
+- `references/refactoring-an-existing-app.md` — audit → triage → fix, with the fix for every rule
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
 - `references/laravel-13-boost.md` — Laravel 13 changes, and wiring this into Boost and project rules
 - `scripts/laravel_audit.py` — the checker, with `--selftest`

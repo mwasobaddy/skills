@@ -247,6 +247,9 @@ reads the same before and after your work. Use `--baseline`: it prints introduce
 `--fail-on-new` exits non-zero only when your changes add an error. Regenerate the baseline after
 upgrading the auditor — a delta is only meaningful across the same rule set.
 
+For a full audit-and-refactor pass — triage order, the fix for every rule, commit granularity, and what
+to do when the suite starts red — read `references/refactoring-an-existing-app.md`.
+
 Exit code `1` on errors, so it runs in CI. Fix errors before warnings, and fix the **template** that
 caused them rather than each instance.
 
@@ -269,6 +272,7 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
 | `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
 | `references/migrating-services-to-actions.md` | You are converting an existing service layer to Actions, per use case |
+| `references/refactoring-an-existing-app.md` | Auditing a real app — triage order, the fix for each rule, one commit per change |
 | `references/starter-kits.md` | Frontend work — Inertia or Livewire, and dual validation |
 | `references/laravel-13-boost.md` | Laravel 13 specifics, or wiring this into Laravel Boost and project rules |
 
