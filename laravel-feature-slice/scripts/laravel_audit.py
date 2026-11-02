@@ -211,16 +211,43 @@ class LaravelAudit:
                          "$request->validate() in a controller",
                          "Extract to a Form Request. Validation in a controller cannot be reused "
                          "or unit-tested, and authorization has no home.")
-            for pat, label in ((r"::create\s*\(", "::create()"),
-                               (r"->save\s*\(", "->save()"),
-                               (r"->update\s*\(", "->update()"),
-                               (r"->delete\s*\(", "->delete()"),
-                               (r"::updateOrCreate\s*\(", "::updateOrCreate()")):
-                if re.search(pat, code):
-                    self.add(WARN, "model-write-in-controller", r,
-                             f"{label} called in a controller",
-                             "Move the write into an Action. Controllers should not persist.")
-                    break
+            # A controller calling $service->update() is doing the right thing; only a write on a
+            # model is a finding. Resolve the receiver through constructor properties and method
+            # parameters so `$this->roles` typed as a service is not mistaken for a model.
+            ctor_types = {}
+            cm = re.search(r"function __construct\(([\s\S]*?)\)\s*\{", code)
+            if cm:
+                for pm in re.finditer(
+                        r"(?:public|protected|private)\s+(?:readonly\s+)?([A-Za-z_\\][\w\\]*)\s+\$(\w+)",
+                        cm.group(1)):
+                    ctor_types[pm.group(2)] = pm.group(1)
+            param_types = {}
+            for _name, (_body, _params, _vis) in method_bodies(code).items():
+                for pm in re.finditer(r"([A-Za-z_\\][\w\\]*)\s+\$(\w+)", _params):
+                    param_types[pm.group(2)] = pm.group(1)
+
+            SERVICE_LIKE = re.compile(r"(Service|Action|Repository|Repo|Gateway|Manager|Builder|Mailer)$", re.I)
+
+            def is_model_receiver(recv):
+                if recv.startswith("$this->"):
+                    return not SERVICE_LIKE.search(ctor_types.get(recv.split("->", 1)[1], ""))
+                if recv.startswith("$"):
+                    return not SERVICE_LIKE.search(param_types.get(recv.lstrip("$"), ""))
+                return not SERVICE_LIKE.search(recv)          # static: User::create()
+
+            WRITES = re.compile(
+                r"(?<![\w$])([A-Z]\w*)\s*::(create|updateOrCreate)\s*\("
+                r"|(\$[\w]+(?:->[\w]+(?:\([^;]*?\))?)*)\s*->(update|save|delete)\s*\(")
+            for wm in WRITES.finditer(code):
+                recv = wm.group(1) or wm.group(3)
+                if not is_model_receiver(recv):
+                    continue
+                label = wm.group(2) or wm.group(4)
+                display = re.sub(r"\((?:[^()]|\([^()]*\))*\)", "()", recv)
+                self.add(WARN, "model-write-in-controller", r,
+                         f"{display}->{label}() called in a controller",
+                         "Move the write into an Action. Controllers should not persist.")
+                break
             if re.search(r"\bDB::", code):
                 self.add(WARN, "db-in-controller", r, "DB facade used in a controller",
                          "Move queries into a repository, Action, or query scope.")
@@ -679,6 +706,26 @@ class ResetUserPassword
 }
 """
 
+# Calling a service is the correct pattern; only model writes are findings.
+DELEGATING_CONTROLLER = """<?php
+namespace App\\Http\\Controllers;
+
+use App\\Services\\ExpenseService;
+
+class ExpenseController extends Controller
+{
+    public function __construct(private ExpenseService $expenses) {}
+
+    public function update(UpdateExpenseRequest $request, Expense $expense, ExpenseService $service)
+    {
+        $this->expenses->update($expense, $request->validated());
+        $service->update($expense, $request->validated());
+
+        return redirect()->route('expenses.index');
+    }
+}
+"""
+
 # Query services are allowed to be long; action-too-large must not apply.
 BIG_SERVICE = ("<?php\nnamespace App\\Services;\n\nclass BigService\n{\n"
                + "    // aggregate query\n" * 205 + "}\n")
@@ -728,6 +775,7 @@ def selftest():
         put2("app/Http/Controllers/Auth/RegisterController.php", GOOD_CONTROLLER)
         put2("app/Http/Controllers/ListController.php", GET_CONTROLLER)
         put2("app/Http/Controllers/HelperController.php", HELPER_CONTROLLER)
+        put2("app/Http/Controllers/ExpenseController.php", DELEGATING_CONTROLLER)
         put2("app/Actions/Fortify/ResetUserPassword.php", FORTIFY_ACTION)
         put2("app/Services/BigService.php", BIG_SERVICE)
         put2("app/Http/Requests/Auth/StoreRegistrationRequest.php", GOOD_FORM_REQUEST)
@@ -749,11 +797,12 @@ def selftest():
             ok = False
         noise = [f for f in findings
                  if f.rule in ("raw-request-parameter", "method-too-large",
-                               "action-too-large", "action-no-entrypoint")]
+                               "action-too-large", "action-no-entrypoint",
+                               "model-write-in-controller")]
         if noise:
             print(f"FAIL: clean fixture flagged {[(f.rule, f.file) for f in noise]} — "
-                  f"a Form Request hint, a GET index, a private helper, a Fortify action and a "
-                  f"long query service must all be accepted")
+                  f"a Form Request hint, a GET index, a private helper, a Fortify action, a long "
+                  f"query service and a service-calling controller must all be accepted")
             ok = False
 
     print("selftest:", "PASS" if ok else "FAIL")
