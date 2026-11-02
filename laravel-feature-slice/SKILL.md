@@ -100,7 +100,7 @@ Four portable preferences that apply to every project this skill is used on:
 - a resource folder's list page is `index.tsx` — never `users-table.tsx`, `list.tsx`, or `-page.tsx`; a
   folder is a namespace for sibling pages, so one page does not get its own folder (`users/chat.tsx`,
   not `users/chat/index.tsx` with nothing else in it)
-- **create, edit and view all use the same sheet** — never a full page and never a centred modal --
+- **create, edit and view all use the same sheet** — never a full page and never a centred modal —
   and **delete is a centred modal with a password**. Every one of them is URL-based — never `useState`
 - authorization checks **permissions**, never roles; roles exist to assign permissions in the UI
 - during development, edit the existing migration rather than adding a column migration — **but ask
