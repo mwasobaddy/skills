@@ -124,10 +124,10 @@ def strip_comments(src):
 
 
 def method_bodies(code):
-    """Map method name -> (body, param_string) using brace matching."""
+    """Map method name -> (body, params, visibility) using brace matching."""
     result = {}
-    for m in re.finditer(r"function\s+(\w+)\s*\(([^)]*)\)[^{;]*\{", code):
-        name, params = m.group(1), m.group(2)
+    for m in re.finditer(r"(?:(public|protected|private)\s+)?function\s+(\w+)\s*\(([^)]*)\)[^{;]*\{", code):
+        vis, name, params = m.group(1) or "public", m.group(2), m.group(3)
         start = m.end()
         depth, i = 1, start
         while i < len(code) and depth:
@@ -136,7 +136,7 @@ def method_bodies(code):
             elif code[i] == "}":
                 depth -= 1
             i += 1
-        result[name] = (code[start:i - 1], params)
+        result[name] = (code[start:i - 1], params, vis)
     return result
 
 
@@ -232,13 +232,15 @@ class LaravelAudit:
             # $request" matches, which flags exactly the Form Requests this skill tells you
             # to write.
             RAW_REQUEST = re.compile(r"(?<![A-Za-z0-9_\\])\\?Request\s+\$request")
-            for name, (body, params) in method_bodies(code).items():
-                if RAW_REQUEST.search(params) and name not in GET_METHODS:
+            for name, (body, params, vis) in method_bodies(code).items():
+                # Only route actions need a Form Request. Private/protected helpers taking a
+                # Request are ordinary collaborators and cannot be swapped for one.
+                if vis == "public" and RAW_REQUEST.search(params) and name not in GET_METHODS:
                     self.add(WARN, "raw-request-parameter", r,
                              f"{name}() takes a raw Illuminate\\Http\\Request",
                              "Type-hint a Form Request instead; it carries rules and authorize().")
                 size = body.count("\n") + 1
-                if name in GET_METHODS:
+                if name in GET_METHODS or vis != "public":
                     continue  # list endpoints with filters legitimately run longer
                 if size > self.METHOD_WARN and name != "__construct":
                     self.add(WARN, "method-too-large", r,
@@ -286,25 +288,26 @@ class LaravelAudit:
 
     # ---- actions / services
     def actions(self):
-        for sub in ("app/Actions", "app/Services"):
-            for path in php_files(self.root, sub):
-                src = read(path)
-                code = strip_php(src)
-                r = rel(self.root, path)
-                # Traits under Concerns/ hold shared helpers, not use cases. They have
-                # no entrypoint by design and are not Actions.
-                if re.search(r"^\s*trait\s+\w+", code, re.M) or "/Concerns/" in r.replace("\\", "/"):
-                    continue
-                self.checked += 1
-                lines = src.count("\n") + 1
-                if lines > self.ACTION_WARN:
-                    self.add(WARN, "action-too-large", r, f"{lines} lines",
-                             "An action should do one thing. Split it or compose smaller actions.")
-                if sub.endswith("Actions") and not re.search(
-                        r"function\s+(execute|handle|__invoke)\s*\(", code):
-                    self.add(WARN, "action-no-entrypoint", r,
-                             "no execute()/handle()/__invoke() entrypoint",
-                             "Give each action one public entrypoint so its contract is obvious.")
+        # Only app/Actions holds use cases. app/Services keeps queries and aggregates, which are
+        # allowed to be long and have their own entrypoints, and app/Actions/Fortify follows
+        # Fortify's contract (create/reset) rather than this skill's handle().
+        for path in php_files(self.root, "app/Actions"):
+            src = read(path)
+            code = strip_php(src)
+            r = rel(self.root, path)
+            if re.search(r"^\s*trait\s+\w+", code, re.M) or "/Concerns/" in r.replace("\\", "/"):
+                continue
+            if "/Fortify/" in r.replace("\\", "/"):
+                continue
+            self.checked += 1
+            lines = src.count("\n") + 1
+            if lines > self.ACTION_WARN:
+                self.add(WARN, "action-too-large", r, f"{lines} lines",
+                         "An action should do one thing. Split it or compose smaller actions.")
+            if not re.search(r"function\s+(execute|handle|__invoke)\s*\(", code):
+                self.add(WARN, "action-no-entrypoint", r,
+                         "no execute()/handle()/__invoke() entrypoint",
+                         "Give each action one public entrypoint so its contract is obvious.")
 
     # ---- app-wide code hygiene
     def app_hygiene(self):
@@ -586,6 +589,42 @@ class ListController extends Controller
 }
 """
 
+# A private helper taking a Request is a collaborator, not a route action.
+HELPER_CONTROLLER = """<?php
+namespace App\\Http\\Controllers;
+
+use Illuminate\\Http\\Request;
+
+class HelperController extends Controller
+{
+    public function index()
+    {
+        return response()->json([]);
+    }
+
+    private function authorizeAccess(Request $request): void
+    {
+        abort_unless($request->user(), 403);
+    }
+}
+"""
+
+# Fortify actions follow Fortify's contract, not this skill's handle().
+FORTIFY_ACTION = """<?php
+namespace App\\Actions\\Fortify;
+
+class ResetUserPassword
+{
+    public function reset($user, array $input): void
+    {
+    }
+}
+"""
+
+# Query services are allowed to be long; action-too-large must not apply.
+BIG_SERVICE = ("<?php\nnamespace App\\Services;\n\nclass BigService\n{\n"
+               + "    // aggregate query\n" * 205 + "}\n")
+
 
 def selftest():
     import tempfile
@@ -630,6 +669,9 @@ def selftest():
 
         put2("app/Http/Controllers/Auth/RegisterController.php", GOOD_CONTROLLER)
         put2("app/Http/Controllers/ListController.php", GET_CONTROLLER)
+        put2("app/Http/Controllers/HelperController.php", HELPER_CONTROLLER)
+        put2("app/Actions/Fortify/ResetUserPassword.php", FORTIFY_ACTION)
+        put2("app/Services/BigService.php", BIG_SERVICE)
         put2("app/Http/Requests/Auth/StoreRegistrationRequest.php", GOOD_FORM_REQUEST)
         put2("routes/web.php",
              "<?php\nuse App\\Http\\Controllers\\Auth\\RegisterController;\n"
@@ -640,10 +682,12 @@ def selftest():
             print(f"FAIL: clean fixture produced errors: {[f.rule for f in clean]}")
             ok = False
         noise = [f for f in findings
-                 if f.rule in ("raw-request-parameter", "method-too-large")]
+                 if f.rule in ("raw-request-parameter", "method-too-large",
+                               "action-too-large", "action-no-entrypoint")]
         if noise:
             print(f"FAIL: clean fixture flagged {[(f.rule, f.file) for f in noise]} — "
-                  f"a Form Request hint and a GET index must both be accepted")
+                  f"a Form Request hint, a GET index, a private helper, a Fortify action and a "
+                  f"long query service must all be accepted")
             ok = False
 
     print("selftest:", "PASS" if ok else "FAIL")

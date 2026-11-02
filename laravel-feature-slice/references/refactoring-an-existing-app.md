@@ -9,14 +9,19 @@ merged refactor, and the fix for each rule.
 # 0. green baseline -- never refactor on a red suite
 php artisan test
 
-# 1. record the starting point (the score is meaningless without it)
-python3 scripts/laravel_audit.py . --json .audit/before.json
+# 1. record the starting point ONCE, to a path the work will never write to
+python3 scripts/laravel_audit.py . --json .audit/baseline.json
 
 # 2. read the findings, triage by rule (table below)
 
 # 3. fix one thing, then measure what you introduced
-python3 scripts/laravel_audit.py . --baseline .audit/before.json
+python3 scripts/laravel_audit.py . --baseline .audit/baseline.json
 ```
+
+**The baseline is a snapshot, not a working file.** Naming it `before.json` in instructions invites
+the next agent to re-run with `--json` on that same path, silently turning "before" into "halfway
+through". The delta then reports 12 resolved instead of 24 and looks like a partial failure when the
+work was complete. Write intermediate reports to `.audit/current.json`; never overwrite the snapshot.
 
 `--baseline` prints `introduced` vs `resolved`. In a mature app the absolute score is pinned near 0 by
 pre-existing debt, so **the delta is the only progress signal**. Put `.audit/` in `.gitignore` — the
