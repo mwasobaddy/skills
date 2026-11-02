@@ -1,6 +1,6 @@
 ---
 name: laravel-feature-slice
-description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant Laravel apps that use stancl/tenancy with subdomain identification. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where the host identifies the tenant and changes after login, for example https://kelvin-properties.malimanager.test/kelvin-properties-residences/dashboard, with the first path segment being the property or workspace. Covers the app directory structure and what each layer does, plus the file manifest for Form Requests, Actions, DTOs, Services, Policies, roles and sub-permissions, Enums, Events, Jobs, Resources, migrations, models, tests, and the matching React, Vue, Svelte or Livewire pages with backend and frontend validation on both sides. Also use when fixing bulky controllers, inline validation, business logic in the wrong layer, permissions checked in the wrong tier, or cross-tenant data leaks. Targets Laravel 13 and Laravel Boost.
+description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant codebases. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where a tenant is identified by subdomain, custom domain, URL path, or a tenant column, and where roles, permissions or policies decide what a member may do. Starts with a discovery pass that detects the app's tenancy model, authorization tiers, base classes, money representation and frontend stack before any code is written, then gives the file manifest for Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models and tests, with backend and frontend validation on both sides. Works with stancl/tenancy, spatie multitenancy, custom organization scoping, and single-tenant Laravel apps. Targets Laravel 13 and Laravel Boost.
 license: MIT
 metadata:
   author: mwasobaddy
@@ -16,40 +16,45 @@ This skill makes a feature a **slice of files**, each with one job.
 It is prescriptive on purpose. Laravel Boost already ships descriptive framework guidance; use that
 for "how does Inertia work". Use this for "what files does this feature need, and what goes in each".
 
-## Tenant context comes first
+## Discover the project first
 
-This is a **multi-tenant** application using `stancl/tenancy` v3 with **subdomain identification**.
-Before designing anything, answer three questions:
+This skill's defaults are wrong for some project, including probably yours. Tenancy model, authorization
+tiers, base classes, money representation and frontend stack all vary, and each changes the answer.
 
-1. **Which host does this live on?** Central (`malimanager.test`) or tenant
-   (`{org-slug}.malimanager.test`). They use different route files and different middleware.
-2. **How is tenant identity proven?** From the host — never from a request parameter. Read it through
-   `App\Support\TenancyContext`.
-3. **What scoping does every query need?** `DatabaseTenancyBootstrapper` is **disabled**, so all
-   tenants share one database and nothing is scoped for you.
+**A documented project rule always beats a default here.** If `.ai/rules`, `AGENTS.md` or `CLAUDE.md`
+states a convention, that is the answer; this skill only fills the gaps.
 
-A feature that ignores these three is wrong even if it passes its tests, because the failure mode is
+Spend one pass producing a six-line profile before writing code — `references/project-discovery.md` has
+the commands. The three questions that matter most:
+
+1. **How is the tenant identified?** Subdomain, custom domain, URL path, or a column. This decides which
+   routes exist and where identity comes from.
+2. **Is storage shared or per-tenant?** A separate database scopes for you. A shared database scopes
+   nothing, and every query becomes your responsibility.
+3. **Which authorization tiers exist?** Coarse role, scoped permission, record policy — or a mix.
+   Choosing the wrong one fails open.
+
+A feature that gets these wrong is wrong even when its tests pass, because the failure mode is
 cross-tenant data exposure.
 
-The full model — hosts, the login → tenant-subdomain flow, disabled bootstrappers, queue context,
-testing, and the common mistakes — is in `references/multitenancy.md`. Read it before any feature that
-touches tenant data.
+- Tenancy detail — `references/multitenancy.md`
+- Authorization detail — `references/authorization.md`
 
 ## Authorization has three tiers
 
 Picking the wrong tier is a security bug, not a style problem.
 
-| Tier | Answers | Where |
+| Tier | Answers | Typical implementation |
 | --- | --- | --- |
-| **Platform role** (spatie) | What kind of account is this? | `PlatformRole` — admin, organization-owner, searcher, occupant |
-| **Sub-permission** (custom) | What may this member do *in this organization*? | `SubPermissionKey` + `sub.permission:<key>` middleware |
-| **Policy** | May this user act on *this record*? | `app/Policies` |
+| **Coarse role** | What kind of account is this? | enum, or a role on the user |
+| **Scoped permission** | What may this member do *in this scope*? | permission keys, granted per team/organization |
+| **Policy** | May this user act on *this record*? | Laravel policy |
 
-Most feature decisions are **sub-permissions**, not platform roles. `hasSubPermission()` already
-applies the platform-admin and owner bypasses — do not reimplement them inline, and never evaluate a
-sub-permission against an organization id taken from the request.
+Most feature decisions are **scoped permissions**, not coarse roles. Where a helper already grants
+super-admin and owner bypasses, do not reimplement them inline — and never evaluate a permission against
+a scope supplied by the request.
 
-Full model, the "adding a permission" checklist, and the mistake table: `references/authorization.md`.
+Full model, the "adding a permission" sequence, and the mistake table: `references/authorization.md`.
 
 ## The one rule
 
@@ -258,6 +263,7 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | File | Read it when |
 | --- | --- |
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
+| `references/project-discovery.md` | Always first — establish this app's tenancy, authorization, base classes, money and frontend |
 | `references/app-structure.md` | Which directory a piece of code belongs in, and what each layer does |
 | `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
 | `references/authorization.md` | Any feature with permissions — choosing between platform role, sub-permission, and policy |

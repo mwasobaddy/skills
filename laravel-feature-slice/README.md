@@ -1,8 +1,11 @@
 # laravel-feature-slice
 
-A prescriptive architecture for Laravel features on **multi-tenant** apps (stancl/tenancy, subdomain
-identification): every file that should exist, in the order it should be written, with the controller
-reduced to routing and tenant scoping made explicit.
+A prescriptive architecture for Laravel features on **multi-tenant** apps — subdomain, custom domain,
+URL path, or tenant column, with any tenancy package or none: every file that should exist, in the
+order it should be written, with the controller reduced to routing and tenant scoping made explicit.
+
+It starts with a discovery pass rather than assumptions, because tenancy model, authorization tiers,
+base classes and money representation differ per project.
 
 ## The problem it solves
 
@@ -77,8 +80,9 @@ behaviour, query performance, or whether the business rules are right.
 - `references/feature-manifest.md` — exact file lists for login, onboarding, and a paid order, plus what not to create
 - `references/layers.md` — every layer: rule, code shape, anti-pattern
 - `references/adapting-to-an-app.md` — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder
-- `references/multitenancy.md` — stancl/tenancy subdomain model, the login → tenant flow, scoping rules, queues, cross-tenant tests
-- `references/authorization.md` — the three tiers: platform role, sub-permission, policy
+- `references/project-discovery.md` — the six-line profile: tenancy, authorization, base classes, money, frontend, tests
+- `references/multitenancy.md` — identification and storage models, scoping rules, queues, cross-tenant tests
+- `references/authorization.md` — the three tiers: coarse role, scoped permission, policy
 - `references/app-structure.md` — the full `app/` directory map and what each layer does
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation

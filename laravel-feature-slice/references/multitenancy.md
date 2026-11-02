@@ -1,159 +1,102 @@
-# Multitenancy: stancl/tenancy v3 with subdomain identification
+# Multitenancy: identify the model, then apply the rules
 
-This app is multi-tenant. **Every feature decision must answer: which tenant is this for, and how is
-that proven?**
+Tenant code fails in the same place regardless of stack: something reads tenant identity from the
+request instead of from the tenant context, or a query runs without a scope. The fixes differ by
+model, so establish the model first (`project-discovery.md`).
 
-Tool: `stancl/tenancy` ^3.10. Identification: **subdomain**, via `InitializeTenancyByDomain`.
+## The two axes
 
-## The two kinds of host
-
-| Host | What lives there | Route file |
+| Axis | Options | Consequence |
 | --- | --- | --- |
-| `malimanager.test` (central) | login, onboarding, platform admin, org management, property picker | `routes/web.php`, `routes/platform.php` |
-| `{org-slug}.malimanager.test` (tenant) | everything scoped to one organization | `routes/tenant.php` |
+| **Identification** | subdomain, custom domain, URL path, query/column, session | decides where tenant identity comes from and which routes exist |
+| **Storage** | separate database per tenant, shared database with a tenant column | decides whether isolation is free or entirely your responsibility |
 
-Config: `config/tenancy.php` → `central_domains` and `subdomain_base` (env `TENANT_SUBDOMAIN_BASE`).
+Common combinations:
 
-Each organization gets a `domains` row when it is created. The host is not derived from a session —
-it is a real DNS-ish identifier stored in the central `domains` table, so two organizations can never
-claim the same subdomain.
-
-## The login → tenant flow
-
-A user authenticates on the **central** domain. There is no tenant yet at that point — tenancy is
-initialized by the host, and the host is central. After authentication `App\Support\AuthLanding`
-decides where to send them, ending at a URL shaped like:
-
-```
-https://kelvin-properties.malimanager.test/kelvin-properties-residences/dashboard
-└──────────── tenant subdomain ────────┘ └──── property slug ────┘ └ route ┘
-```
-
-- **Host** identifies the tenant (organization).
-- **First path segment** identifies the property or workspace within that tenant.
-- Everything after belongs to a normal named route.
-
-So the same route name resolves on many hosts, and one tenant's property can never be addressed on
-another tenant's host — the middleware rejects it before routing.
-
-## The route middleware chain
-
-`routes/tenant.php` wraps tenant routes with:
-
-```php
-InitializeTenancyByDomain::class,
-PreventAccessFromCentralDomains::class,
-```
-
-- `InitializeTenancyByDomain` resolves the host to a tenant and boots tenancy. An unknown host is not a
-  404 route — it is a failed identification.
-- `PreventAccessFromCentralDomains` stops tenant routes being reached on the central domain. This is
-  what prevents `/kelvin-properties/dashboard` existing on `malimanager.test`.
-
-Never add a tenant route to `routes/web.php`. It will appear on every host.
-
-## Reading the current tenant
-
-`App\Support\TenancyContext` is the only sanctioned accessor:
-
-```php
-TenancyContext::initialized(): bool
-TenancyContext::tenant(): ?Tenant
-TenancyContext::tenantId(): ?string
-TenancyContext::organization(): ?Organization
-TenancyContext::domain(): ?Domain
-```
-
-Do not call `tenant()` directly in new code, and never read tenant identity from a request parameter
-(`?organization_id=`) — that is the classic cross-tenant read.
-
-## Isolation is application-level here
-
-**`DatabaseTenancyBootstrapper` is disabled** in `config/tenancy.php`. All tenants share one database.
-
-That is a deliberate architectural choice, and it means **nothing scopes your queries for you**.
-Tenant separation comes from explicit `organization_id` scoping plus policies. An unscoped
-`Property::all()` returns every organization's rows.
-
-Every query that serves a tenant must be constrained by the current organization, and every model
-bound from the URL must be verified to belong to it — route-model binding will happily resolve
-another tenant's row by id.
-
-```php
-// wrong: id from the URL, no tenant predicate
-$deposit = Deposit::findOrFail($request->route('deposit'));
-
-// right: scoped to the current organization
-$deposit = TenancyContext::organization()
-    ->deposits()
-    ->findOrFail($request->route('deposit'));
-```
-
-## Disabled and enabled bootstrappers
-
-| Bootstrapper | State | Consequence |
+| Setup | Isolation | Typical stack |
 | --- | --- | --- |
-| Database | **disabled** | one database; scope everything yourself |
-| Filesystem | **disabled** | media stays on the central `public` disk; `getUrl()` resolves |
-| Cache | enabled | cache keys are tenant-prefixed — a cache written on one tenant is invisible to another |
-| Queue | enabled | jobs carry tenant context |
+| Subdomain + separate DB | connection switching | `stancl/tenancy` with `DatabaseTenancyBootstrapper` |
+| Subdomain + shared DB | **application-level only** | `stancl/tenancy` with the DB bootstrapper disabled, or spatie multitenancy |
+| Path prefix + shared DB | application-level only | custom middleware, `/app/{tenant}/...` |
+| Column only, no host change | application-level only | custom scoping, often a global scope |
+| Single-tenant | none | not a tenant app; skip this file |
 
-**Do not re-enable `FilesystemTenancyBootstrapper`** without reading `.ai/rules/media.md`: uploads
-would move to `storage/tenant{id}/app/public`, which the media library's `getUrl()` cannot resolve,
-breaking every existing image.
+The dangerous row is **shared database**: nothing prevents a cross-tenant read except your own
+scopes. That is where the checklist below matters most.
 
-## Queues and jobs
+## Rules that apply to every model
 
-Queue tenancy is on, so a job dispatched inside a tenant request runs with that tenant initialized.
-A job dispatched from a **central** context — a platform admin action, a scheduled command, an event
-fired after a response — does **not**. It will either see no tenant or the wrong one.
+1. **Identity comes from the tenant context, never from input.** No `?organization_id=`, no hidden
+   form field, no route parameter used as the tenant.
+2. **Every query is scoped.** If storage is shared, the scope is explicit. If a global scope exists,
+   know exactly where it applies and where it is bypassed (`withoutGlobalScope`, raw queries, jobs).
+3. **Route-model binding must be re-verified.** `Model::findOrFail($id)` resolves any tenant's row.
+   Bind through the tenant's relation, or check membership in the policy.
+4. **Route placement follows the host.** Central routes and tenant routes live in separate files with
+   separate middleware. A tenant route in the central file is exposed on every host.
+5. **Queued work loses context.** Queue tenancy helps only when the job is dispatched inside a tenant
+   request. Jobs from commands, central admin actions, or after-response callbacks need the tenant id
+   passed and initialized explicitly.
+6. **Cache keys are shared** unless the cache bootstrapper prefixes them. A cached payload written for
+   one tenant can be read by another.
+7. **Test isolation, not just features.** One test per resource proving tenant B cannot read tenant A's
+   row by id. That test is the only thing between a scoping change and an incident.
 
-If a job touches tenant data, either dispatch it from within tenant context or pass the organization
-id explicitly and initialize tenancy in the job:
+## If a separate database per tenant
 
-```php
-public function handle(): void
-{
-    tenancy()->initialize($this->organizationId);
-    // ...
-}
-```
+- Migrations live in a tenant path (`database/migrations/tenant`) and run per tenant.
+- Connection switching is automatic inside the tenant request; raw `DB::connection()` calls can escape it.
+- Cross-tenant queries need an explicit connection switch — a feature that spans tenants is a design
+  smell, not a query tweak.
+- Seeding, backups and schema changes are per tenant: a new migration is not "done" until every tenant
+  has it.
 
-Test this. A job that works in a request and fails from a command is the normal failure mode.
+## If the database is shared
 
-## Testing tenant behaviour
+- Every model that belongs to a tenant carries the tenant key; every query filters on it.
+- Prefer relation-based binding (`$tenant->deposits()->findOrFail($id)`) over `Model::findOrFail()`.
+- Policies must check organization membership, not just ownership of the record.
+- Aggregates and reports are the usual leak: a dashboard query that forgets the scope returns other
+  tenants' totals and looks plausible.
 
-Tenant HTTP tests must use the tenant host, otherwise middleware rejects the request before your code
-runs:
+## If identification is by path
 
-```php
-$tenant = Tenant::create(['id' => 'acme']);
-$tenant->domains()->create(['domain' => 'acme.malimanager.test']);
+- The tenant segment is part of every URL and every generated link; a missing segment silently
+  resolves to the wrong tenant or a 404.
+- Route middleware must reject a tenant segment that the user is not a member of, not merely resolve it.
+- Named routes need the tenant parameter everywhere; a bare `route('dashboard')` will either fail or
+  drop the tenant.
 
-$this->get('http://acme.malimanager.test/overview')->assertOk();
-```
+## Reference implementation
 
-For a cross-tenant test, create two tenants with one model each and assert user A cannot read B's row
-by id. That test is the only thing standing between a scoping change and an incident.
+One real app, for concreteness — treat it as an example, not a requirement:
 
-## Checklist before calling a tenant feature done
+| Aspect | Its choice |
+| --- | --- |
+| Stack | `stancl/tenancy` v3, subdomain identification |
+| Hosts | central `malimanager.test`; tenant `{org-slug}.malimanager.test` |
+| Storage | **shared database** — `DatabaseTenancyBootstrapper` disabled |
+| Bootstrappers | cache and queue enabled; filesystem **disabled** on purpose (media on the central disk) |
+| Context accessor | `App\Support\TenancyContext::organization()` / `tenantId()` |
+| URL shape | `https://{org}.host/{property-slug}/dashboard` |
+| Routes | `routes/tenant.php` with `InitializeTenancyByDomain` + `PreventAccessFromCentralDomains` |
+| Login | central domain, then redirect to the tenant host after authentication |
 
-- [ ] Tenant identity comes from the host, never a query parameter
-- [ ] Every query is scoped to `TenancyContext::organization()`
-- [ ] Route-model binding is verified against the current organization
-- [ ] The policy checks organization membership, not just ownership
-- [ ] Any queued work has tenant context, or initializes it
-- [ ] Cache keys are safe under tenant prefixing
-- [ ] One test proves a second tenant cannot read the row
-- [ ] Central-only routes are not reachable on tenant hosts, and vice versa
+Two details from that app that are easy to get wrong when copying a tutorial:
+
+- Because the DB bootstrapper is disabled, **nothing** is scoped automatically. A plain
+  `Property::all()` returns every organization's rows.
+- The filesystem bootstrapper is disabled deliberately: enabling it moves uploads to a per-tenant disk
+  path that the media library's URL resolver cannot see, breaking existing images.
 
 ## Common mistakes
 
 | Mistake | Result |
 | --- | --- |
-| Tenant route added to `routes/web.php` | reachable on every host, with no tenant initialized |
-| Reading `organization_id` from the request | cross-tenant read |
-| `Model::find()` on a URL id | resolves another tenant's row |
-| Job dispatched from a central action | runs with no tenant, writes nowhere or everywhere |
-| Re-enabling filesystem tenancy | every uploaded file's URL breaks |
-| Assuming a separate database per tenant | it is one database; nothing is scoped for you |
+| Tenant id read from the request | cross-tenant read or write |
+| `Model::find($id)` on a tenant model | resolves another tenant's row |
+| Tenant route added to the central route file | reachable on every host, no tenant initialized |
+| Job dispatched from central context | runs without a tenant |
+| Assuming a separate DB because the package supports it | it may be a single DB; verify the bootstrappers |
+| Re-enabling a bootstrapper "because the docs say so" | changes storage paths and breaks existing URLs |
+| Only testing the happy path | the leak is never exercised |
