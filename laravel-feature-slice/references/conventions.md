@@ -37,10 +37,11 @@ silent duplicate: one of them is dead code and nothing warns you.
 `Inertia::render('users/index')` must match the folder and file exactly. A mismatch is a blank screen,
 not an error.
 
-## Create, edit and view use a URL-based overlay
+## Create, edit and view are sheets; delete is a modal
 
-Which surface to use — modal, sheet, full page — is decided by the job, not by the CRUD verb. The
-matrix, the URL mechanics and the component contract all live in `references/overlays.md`.
+A record is created, edited and viewed in the same sheet — never a full page, never a centred modal.
+Delete is the only modal, because a destructive confirmation should block the page. The matrix, URL
+mechanics, component contract and the routing trap all live in `references/overlays.md`.
 
 The one thing to remember without opening it: **the overlay's open state comes from the URL, never
 from `useState`.** Local state means the sheet cannot be linked to, cannot be refreshed, and the back
