@@ -24,6 +24,54 @@ SKIP_DIRS = {"vendor", "node_modules", "storage", "bootstrap/cache", ".git",
              "public", "database/migrations"}
 
 
+def service_inventory(root):
+    """Classify public service methods as write use cases or read collaborators."""
+    base = os.path.join(root, "app/Services")
+    rows = []
+    for path in php_files(root, "app/Services"):
+        src = read(path)
+        code = strip_php(src)
+        methods = []
+        for m in re.finditer(r"public\s+function\s+(\w+)\s*\(([^)]*)\)[^{;]*\{", code):
+            name = m.group(1)
+            start = m.end()
+            depth, i = 1, start
+            while i < len(code) and depth:
+                if code[i] == "{":
+                    depth += 1
+                elif code[i] == "}":
+                    depth -= 1
+                i += 1
+            body = code[start:i - 1]
+            write = bool(re.search(
+                r"\$this->(save|delete|transaction)\s*\(|::create\s*\(|->update\s*\(|"
+                r"->delete\s*\(|->save\s*\(|::updateOrCreate\s*\(", body))
+            methods.append({"method": name, "write": write,
+                            "lines": body.count("\n") + 1})
+        if methods:
+            rows.append({"service": os.path.basename(path)[:-4],
+                         "file": rel(root, path), "methods": methods})
+    return rows
+
+
+def print_inventory(rows):
+    total_w = sum(1 for r in rows for m in r["methods"] if m["write"])
+    total = sum(len(r["methods"]) for r in rows)
+    print(f"\nservices: {len(rows)}   public methods: {total}   "
+          f"write use cases: {total_w}   read/aggregate: {total - total_w}")
+    print("\nwrite methods are Action candidates; read/aggregate methods stay in the service\n")
+    for r in sorted(rows, key=lambda x: x["service"]):
+        w = [m for m in r["methods"] if m["write"]]
+        rd = len(r["methods"]) - len(w)
+        if not w:
+            print(f"  {r['service']:38} {len(r['methods']):2} read  (query service — leave it)")
+            continue
+        print(f"  {r['service']:38} {len(w):2} write / {rd:2} read")
+        for m in w:
+            print(f"      -> {m['method']:28} {m['lines']:3} lines")
+    print()
+
+
 # --------------------------------------------------------------------------- helpers
 def strip_php(src):
     """Remove comments and string literals so code checks don't match prose."""
@@ -605,6 +653,8 @@ def main():
     ap.add_argument("--baseline", help="previous --json report; prints introduced/resolved counts")
     ap.add_argument("--fail-on-new", action="store_true",
                     help="with --baseline, fail only when a NEW error is introduced")
+    ap.add_argument("--services", action="store_true",
+                    help="inventory app/Services and classify methods as Action candidates")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
 
@@ -625,6 +675,9 @@ def main():
             return 2
 
     auditor = LaravelAudit(args.path)
+    if args.services:
+        print_inventory(service_inventory(args.path))
+        return 0
     return report(auditor.run(), auditor.checked, args.json, baseline, args.fail_on_new)
 
 

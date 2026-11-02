@@ -225,6 +225,7 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
 | `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
+| `references/migrating-services-to-actions.md` | You are converting an existing service layer to Actions, per use case |
 | `references/starter-kits.md` | Frontend work — Inertia or Livewire, and dual validation |
 | `references/laravel-13-boost.md` | Laravel 13 specifics, or wiring this into Laravel Boost and project rules |
 
