@@ -61,6 +61,7 @@ should be committed.
 ```bash
 python3 scripts/laravel_audit.py /path/to/app
 python3 scripts/laravel_audit.py . --json report.json
+python3 scripts/laravel_audit.py . --baseline report.json --fail-on-new
 python3 scripts/laravel_audit.py --selftest
 ```
 
@@ -74,6 +75,7 @@ behaviour, query performance, or whether the business rules are right.
 - `SKILL.md` — the one rule, build order, thin-controller contract, dual validation
 - `references/feature-manifest.md` — exact file lists for login, onboarding, and a paid order, plus what not to create
 - `references/layers.md` — every layer: rule, code shape, anti-pattern
+- `references/adapting-to-an-app.md` — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
 - `references/laravel-13-boost.md` — Laravel 13 changes, and wiring this into Boost and project rules
 - `scripts/laravel_audit.py` — the checker, with `--selftest`

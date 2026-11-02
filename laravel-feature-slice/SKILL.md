@@ -45,6 +45,23 @@ Never start with the page. Each layer's contract determines the next.
 
 Full manifests for login, onboarding, and a paid order: `references/feature-manifest.md`.
 
+## When the app already disagrees
+
+Most apps have conventions older than this skill. Read them before writing code, then decide which
+way the boundary runs — and say which you chose:
+
+| Conflict | Default resolution |
+| --- | --- |
+| App uses Services, this skill says Actions | New work in Actions; existing Services stay until touched. Record it. |
+| App stores `decimal(14,2)`, this skill's example says cents | Match the app. Two money representations is a bug factory. |
+| `tests/Unit` doesn't boot Laravel | Bind `Unit/Actions` to the TestCase, or use Feature for actions that hit the DB. |
+| Authorization returns redirect + toast, not 403 | Assert the redirect, the toast, **and** that nothing was written. |
+| Tenancy is ambient | Pass the tenant id in the DTO; keep the context out of Actions. |
+| Wayfinder typed routes | `php artisan wayfinder:generate` after adding routes. |
+
+Full detail: `references/adapting-to-an-app.md`. Whatever you decide, write it to a rule file so the
+next agent doesn't resolve the same conflict differently.
+
 ## Thin controller, before and after
 
 ```php
@@ -165,6 +182,10 @@ echo "skill dir: ${SKILL_DIR:-NOT FOUND}"
 python3 "$SKILL_DIR/scripts/laravel_audit.py" --selftest        # proves it runs
 python3 "$SKILL_DIR/scripts/laravel_audit.py" /path/to/app
 python3 "$SKILL_DIR/scripts/laravel_audit.py" . --json report.json
+
+# in a legacy app: baseline once, then measure what your work introduced
+python3 "$SKILL_DIR/scripts/laravel_audit.py" . --json baseline.json
+python3 "$SKILL_DIR/scripts/laravel_audit.py" . --baseline baseline.json --fail-on-new
 ```
 
 **If no directory is found, say so and give the user the command to run.** Do not substitute an
@@ -175,6 +196,15 @@ Flags inline validation, Eloquent writes in controllers, raw `Request` injection
 missing `rules()`/`authorize()`, oversize controllers/models/actions, `env()` outside config, `dd()`
 left in, routes pointing at missing classes or methods, `Inertia::render()` targets with no page
 component, Livewire views that don't exist, and controllers with no test.
+
+Two deliberate carve-outs: `index`/`show`/`create`/`edit` may take a raw `Request` (filters and
+pagination have no Form Request) and are exempt from the method-length rule. A Form Request type-hint
+is never flagged — the rule matches `Request` as a whole type name.
+
+**In an existing codebase the score is the wrong metric.** Pre-existing debt floors it at 0, so it
+reads the same before and after your work. Use `--baseline`: it prints introduced vs resolved, and
+`--fail-on-new` exits non-zero only when your changes add an error. Regenerate the baseline after
+upgrading the auditor — a delta is only meaningful across the same rule set.
 
 Exit code `1` on errors, so it runs in CI. Fix errors before warnings, and fix the **template** that
 caused them rather than each instance.
@@ -193,6 +223,7 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | --- | --- |
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
+| `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
 | `references/starter-kits.md` | Frontend work — Inertia or Livewire, and dual validation |
 | `references/laravel-13-boost.md` | Laravel 13 specifics, or wiring this into Laravel Boost and project rules |
 

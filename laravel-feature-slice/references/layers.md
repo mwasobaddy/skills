@@ -154,7 +154,11 @@ class Order extends Model
 }
 ```
 
-Money as integer cents. Never floats. Cast enums, never store raw strings for a fixed set.
+Money is a representation decision, not a rule. **Match what the app already stores** — an app with
+`decimal(14,2)` and a `decimal:2` cast should get `decimal` for new tables, not integer cents, or you
+have two money types and a conversion bug at every boundary. Integer cents are the better default
+only for greenfield. Record whichever you pick. Never floats. Cast enums, never store raw strings for
+a fixed set.
 
 ## Policy — authorization
 
@@ -217,9 +221,15 @@ queued.
 ## Tests
 
 - **Feature test per controller action** — the HTTP contract, validation, authorization, redirect.
-- **Unit test per Action** with branching logic — no HTTP, no container.
-- Test the **failure** path: invalid input rejected, unauthorized user forbidden, gateway failure
-  handled.
+- **Unit test per Action** with branching logic — no HTTP. Check whether `tests/Unit` actually boots
+  the app first: in many projects only `tests/Feature` is bound to `Tests\TestCase`, so an Action that
+  touches Eloquent fails there with a confusing "no application" error. Either bind the Actions
+  subdirectory to the TestCase, move them to Feature, or keep Unit for pure logic only
+  (`references/adapting-to-an-app.md`).
+- Test the **failure** path: invalid input rejected, unauthorized user refused, gateway failure
+  handled. Assert the refusal the way the app expresses it — a redirect plus a toast is not
+  `assertForbidden()`, and the side-effect assertion ("no row written") proves the refusal happened
+  before the write.
 
 ```php
 it('rejects an invalid goal', function () {
