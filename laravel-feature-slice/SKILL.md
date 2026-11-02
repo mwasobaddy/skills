@@ -47,12 +47,13 @@ Full manifests for login, onboarding, and a paid order: `references/feature-mani
 
 ## When the app already disagrees
 
-Most apps have conventions older than this skill. Read them before writing code, then decide which
-way the boundary runs — and say which you chose:
+Most apps have conventions older than this skill, often written into `.ai/rules` or `AGENTS.md`.
+**A documented project rule wins.** This skill is the default when the app has not decided.
 
 | Conflict | Default resolution |
 | --- | --- |
-| App uses Services, this skill says Actions | New work in Actions; existing Services stay until touched. Record it. |
+| App documents Services in `.ai/rules` | Follow the app. Do not add Actions alongside it — that is how two idioms appear. |
+| App uses Services but has no written rule | New work in Actions; existing Services stay until touched. Record it. |
 | App stores `decimal(14,2)`, this skill's example says cents | Match the app. Two money representations is a bug factory. |
 | `tests/Unit` doesn't boot Laravel | Bind `Unit/Actions` to the TestCase, or use Feature for actions that hit the DB. |
 | Authorization returns redirect + toast, not 403 | Assert the redirect, the toast, **and** that nothing was written. |

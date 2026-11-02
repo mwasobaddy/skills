@@ -4,6 +4,28 @@ The 13-layer manifest is a target, not a licence to introduce a second way of do
 Almost every real app already has conventions, and some of them conflict. Decide **before** writing
 code which way the boundary runs, then record the decision so the next agent doesn't re-litigate it.
 
+## Precedence: a documented project rule beats this skill
+
+If the app carries rule files (`.ai/rules`, `AGENTS.md`, `.cursor/rules`) that state a convention,
+**follow them**. This skill is a default for apps that have not decided; it is not an argument
+against a decision the team already wrote down.
+
+Seen in practice: an app's `.ai/rules/services.md` said "all business logic with side effects goes in
+`App\Services`". An agent followed this skill instead, wrote Actions, and produced two coexisting
+idioms. The skill was wrong for that app — the rule file was right.
+
+The split to keep straight:
+
+| Question | Authority |
+| --- | --- |
+| Where does this file go in *this* app? | The project's rule file |
+| What does Laravel 13 / this framework require? | The framework documentation |
+| What does Google require? | The Search documentation |
+| Is there a documented rule for it? | Nothing — use this skill's default |
+
+When they genuinely conflict, say so once, record the decision, and move on. Silently obeying the
+skill against a written rule is the failure mode.
+
 ## Read the app first
 
 | What to check | Where | Why it changes the plan |
