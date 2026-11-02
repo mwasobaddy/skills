@@ -102,6 +102,25 @@ A **full page** remains correct when the view is not a variation of a list row: 
 a multi-step wizard, or anything reached from outside the list. Those get their own file under the
 resource folder.
 
+### If the app already uses query parameters
+
+An established alternative is `/users/create` → `302` → `/users?create=1`, with the page reading the
+query string. It is URL-based too, and it satisfies "shareable and back-button-correct" — so do not
+rewrite it just to match the shape above.
+
+The differences worth knowing:
+
+| | `modal` prop | query parameter |
+| --- | --- | --- |
+| Requests to open | 1 | 2 (redirect, then page) |
+| Address bar | `/users/create` | `/users?create=1` |
+| Partial reload | `only: ['modal']` | `only` the param's prop |
+| Works with existing links | new routes | if links already exist, keep them |
+
+If the app has both, the query-string form is the compatibility path and the route is the target — keep
+the old links working, but render the page directly for new ones. Whichever the app uses, the rule that
+matters is the same: **the overlay's open state comes from the URL, not from `useState`.**
+
 ## Permission-first, never role-first
 
 Check what the user may **do**, not what they are called.
