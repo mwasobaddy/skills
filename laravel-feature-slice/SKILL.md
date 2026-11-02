@@ -95,6 +95,7 @@ Most apps have conventions older than this skill, often written into `.ai/rules`
 | App documents Services in `.ai/rules` | Follow the app. Do not add Actions alongside it — that is how two idioms appear. |
 | App uses Services but has no written rule | New work in Actions; existing Services stay until touched. Record it. |
 | App stores `decimal(14,2)`, this skill's example says cents | Match the app. Two money representations is a bug factory. |
+| App uses custom Eloquent builders | Add new filters to the existing builder; do not duplicate them as scopes. |
 | `tests/Unit` doesn't boot Laravel | Bind `Unit/Actions` to the TestCase, or use Feature for actions that hit the DB. |
 | Authorization returns redirect + toast, not 403 | Assert the redirect, the toast, **and** that nothing was written. |
 | Tenancy is ambient | Pass the tenant id in the DTO; keep the context out of Actions. |
@@ -201,6 +202,7 @@ Per-layer rules, anti-patterns, and code: `references/layers.md`.
 Over-correction produces a different mess. Skip these unless you can name the reason:
 
 - a repository per model — Eloquent already is the data layer
+- a builder class per model — scopes first; a builder only for 3+ reused constraints
 - a service that wraps one model — that is an Action with a worse name
 - a DTO for a single scalar
 - a validation service — Form Requests exist

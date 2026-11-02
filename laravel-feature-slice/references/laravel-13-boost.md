@@ -102,6 +102,10 @@ Eloquent basics, migrations, Blade, routing, Tailwind, Pest syntax, Inertia comp
 Livewire lifecycle, Flux components, Wayfinder helpers. If a rule is in the framework documentation,
 it belongs to Boost, not here.
 
+One exception: custom Eloquent builders (`#[UseEloquentBuilder]`) are public API but appear in neither
+the docs nor Boost's guidelines, which still say "prefer local scopes". The *choice* of when to
+escalate lives here (`references/layers.md`); the mechanics stay with Boost and the framework source.
+
 ## Practical setup order
 
 1. `composer require laravel/boost --dev && php artisan boost:install` — pick your editors and skills.

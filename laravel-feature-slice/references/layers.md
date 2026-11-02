@@ -246,6 +246,34 @@ have two money types and a conversion bug at every boundary. Integer cents are t
 only for greenfield. Record whichever you pick. Never floats. Cast enums, never store raw strings for
 a fixed set.
 
+### When scopes outgrow the model
+
+**Rule:** scopes first. Add a dedicated builder only when three or more query constraints are reused
+at two or more call sites, or the app already has one — never one builder per model.
+
+```php
+#[UseEloquentBuilder(OrderBuilder::class)]
+class Order extends Model {}
+
+final class OrderBuilder extends Builder
+{
+    public function paid(): static
+    {
+        return $this->where('status', OrderStatus::Paid);
+    }
+}
+```
+
+- Extend `Illuminate\Database\Eloquent\Builder`. A class that only implements the builder contract
+  binds silently to the base builder, then fails at the call site with an undefined-method error.
+- Return `static`, not `void`, or chaining and IDE completion break.
+- `Model::query()` is typed `Builder<static>`; add `public static function query(): OrderBuilder` when
+  static analysis must see the builder methods. Relations use the builder at runtime but stay typed
+  `HasMany`/`BelongsTo`.
+- A builder adds constraints only: no writes, no services, no authorization.
+- `#[UseEloquentBuilder]` is public but undocumented (12.19+; older apps override `newEloquentBuilder()`).
+  Laravel 13 resolves it through parent classes and traits; 12.x reads only the class it is declared on.
+
 ## Policy — authorization
 
 **Rule:** one policy per model you authorize against. Controllers call `authorize()`, Form Requests
