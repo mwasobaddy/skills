@@ -147,7 +147,7 @@ Before declaring a feature done:
 - [ ] Form Request with `rules()` **and** `authorize()`
 - [ ] Frontend validation mirroring the server rules, with field-level errors
 - [ ] At least one Action per write path
-- [ ] Policy if the feature is per-user or per-tenant
+- [ ] The right authorization tier: sub-permission for org-scoped actions, policy for record-level, platform role only for operator surfaces (`references/authorization.md`)
 - [ ] Controller methods under 15 lines, no `validate()`, no `::create()`
 - [ ] Named routes
 - [ ] Resource if the endpoint returns JSON

@@ -1,6 +1,6 @@
 ---
 name: laravel-feature-slice
-description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant Laravel apps that use stancl/tenancy with subdomain identification. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where the host identifies the tenant and changes after login, for example https://kelvin-properties.malimanager.test/kelvin-properties-residences/dashboard, with the first path segment being the property or workspace. Covers the app directory structure and what each layer does, plus the file manifest for Form Requests, Actions, DTOs, Services, Policies, Enums, Events, Jobs, Resources, migrations, models, tests, and the matching React, Vue, Svelte or Livewire pages with backend and frontend validation on both sides. Also use when fixing bulky controllers, inline validation, business logic in the wrong layer, or cross-tenant data leaks. Targets Laravel 13 and Laravel Boost.
+description: Structure Laravel features so controllers stay thin and every layer exists, in multi-tenant Laravel apps that use stancl/tenancy with subdomain identification. Use when implementing or reviewing a feature — login, onboarding, CRUD, payments, admin — where the host identifies the tenant and changes after login, for example https://kelvin-properties.malimanager.test/kelvin-properties-residences/dashboard, with the first path segment being the property or workspace. Covers the app directory structure and what each layer does, plus the file manifest for Form Requests, Actions, DTOs, Services, Policies, roles and sub-permissions, Enums, Events, Jobs, Resources, migrations, models, tests, and the matching React, Vue, Svelte or Livewire pages with backend and frontend validation on both sides. Also use when fixing bulky controllers, inline validation, business logic in the wrong layer, permissions checked in the wrong tier, or cross-tenant data leaks. Targets Laravel 13 and Laravel Boost.
 license: MIT
 metadata:
   author: mwasobaddy
@@ -34,6 +34,22 @@ cross-tenant data exposure.
 The full model — hosts, the login → tenant-subdomain flow, disabled bootstrappers, queue context,
 testing, and the common mistakes — is in `references/multitenancy.md`. Read it before any feature that
 touches tenant data.
+
+## Authorization has three tiers
+
+Picking the wrong tier is a security bug, not a style problem.
+
+| Tier | Answers | Where |
+| --- | --- | --- |
+| **Platform role** (spatie) | What kind of account is this? | `PlatformRole` — admin, organization-owner, searcher, occupant |
+| **Sub-permission** (custom) | What may this member do *in this organization*? | `SubPermissionKey` + `sub.permission:<key>` middleware |
+| **Policy** | May this user act on *this record*? | `app/Policies` |
+
+Most feature decisions are **sub-permissions**, not platform roles. `hasSubPermission()` already
+applies the platform-admin and owner bypasses — do not reimplement them inline, and never evaluate a
+sub-permission against an organization id taken from the request.
+
+Full model, the "adding a permission" checklist, and the mistake table: `references/authorization.md`.
 
 ## The one rule
 
@@ -244,6 +260,7 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/app-structure.md` | Which directory a piece of code belongs in, and what each layer does |
 | `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
+| `references/authorization.md` | Any feature with permissions — choosing between platform role, sub-permission, and policy |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
 | `references/adapting-to-an-app.md` | The app already has conventions that differ — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder |
 | `references/migrating-services-to-actions.md` | You are converting an existing service layer to Actions, per use case |

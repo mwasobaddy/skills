@@ -78,6 +78,7 @@ behaviour, query performance, or whether the business rules are right.
 - `references/layers.md` — every layer: rule, code shape, anti-pattern
 - `references/adapting-to-an-app.md` — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder
 - `references/multitenancy.md` — stancl/tenancy subdomain model, the login → tenant flow, scoping rules, queues, cross-tenant tests
+- `references/authorization.md` — the three tiers: platform role, sub-permission, policy
 - `references/app-structure.md` — the full `app/` directory map and what each layer does
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
