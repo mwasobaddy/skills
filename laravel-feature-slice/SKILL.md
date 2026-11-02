@@ -264,7 +264,6 @@ Paths, form patterns, and per-kit rules: `references/starter-kits.md`.
 | --- | --- |
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/project-discovery.md` | Always first — establish this app's tenancy, authorization, base classes, money and frontend |
-| `references/app-structure.md` | Which directory a piece of code belongs in, and what each layer does |
 | `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
 | `references/authorization.md` | Any feature with permissions — choosing between platform role, sub-permission, and policy |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |

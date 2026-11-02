@@ -78,12 +78,11 @@ behaviour, query performance, or whether the business rules are right.
 
 - `SKILL.md` — the one rule, build order, thin-controller contract, dual validation
 - `references/feature-manifest.md` — exact file lists for login, onboarding, and a paid order, plus what not to create
-- `references/layers.md` — every layer: rule, code shape, anti-pattern
 - `references/adapting-to-an-app.md` — Services vs Actions, money representation, test bootstrapping, tenancy, Wayfinder
 - `references/project-discovery.md` — the six-line profile: tenancy, authorization, base classes, money, frontend, tests
 - `references/multitenancy.md` — identification and storage models, scoping rules, queues, cross-tenant tests
 - `references/authorization.md` — the three tiers: coarse role, scoped permission, policy
-- `references/app-structure.md` — the full `app/` directory map and what each layer does
+- `references/layers.md` — the directory map plus the rule and code shape for each layer
 - `references/migrating-services-to-actions.md` — the strangler procedure for converting a service layer
 - `references/starter-kits.md` — React, Vue, Svelte, Livewire paths and form validation
 - `references/laravel-13-boost.md` — Laravel 13 changes, and wiring this into Boost and project rules
