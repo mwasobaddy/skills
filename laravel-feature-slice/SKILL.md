@@ -16,6 +16,33 @@ This skill makes a feature a **slice of files**, each with one job.
 It is prescriptive on purpose. Laravel Boost already ships descriptive framework guidance; use that
 for "how does Inertia work". Use this for "what files does this feature need, and what goes in each".
 
+## When not to use this
+
+This skill is a default, not a requirement. Applied wholesale to a small app it produces ceremony:
+an Action whose `handle()` is one call to `$model->update()`, a DTO with one field, a directory with
+one file per verb and nothing else.
+
+Adopt the full slice when **at least two** of these hold:
+
+- multi-tenant, where scoping is a security boundary
+- more than one permission tier (coarse role + scoped permission + policy)
+- writes span several models, or need a transaction
+- money, or another value with a canonical representation
+- more than ~3 developers touching the same controllers
+
+Below that, start with Laravel's defaults — controllers, Form Requests, policies — and add a layer
+when a specific need appears:
+
+| Add | When |
+| --- | --- |
+| `Actions/` | a use case touches 2+ models, fires events, or needs a transaction |
+| `Data/` | a payload crosses 3+ layers, or a method takes 4+ arguments |
+| `Resources/` | an API needs a shape that is not the model |
+| `Enums/` | a value set is closed (do this early; it is the cheapest layer) |
+
+The auditor is worth running regardless of which structure you choose — it finds things like routes
+pointing at methods that do not exist. The folder manifest is the optional part; the checks are not.
+
 ## Discover the project first
 
 This skill's defaults are wrong for some project, including probably yours. Tenancy model, authorization
