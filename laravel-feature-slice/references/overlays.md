@@ -64,6 +64,21 @@ number without navigating away. A Quick View is additive:
 Never let a table's Sheet replace the record's page. The moment someone needs to link to a record,
 they need `/items/123` to exist.
 
+### Routing the record page
+
+`GET /occupants/{occupant}` and `GET /occupants/create` have the same shape. If the show route is
+registered first and `{occupant}` is unconstrained, it swallows `/occupants/create`: the model binding
+fails and the create form 404s with no error explaining why.
+
+```php
+Route::get('/{property:slug}/occupants/{occupant}', [OccupantController::class, 'show'])
+    ->whereNumber('occupant')
+    ->name('tenant.occupants.show');
+```
+
+Constrain the id rather than relying on route order. The overlay's `create` route usually lives in a
+different permission group, so the order is not yours to keep stable.
+
 ## Delete
 
 **Always a Modal, never a Sheet, never a page.** A centered modal with a backdrop blur blocks the
