@@ -254,7 +254,9 @@ at two or more call sites, or the app already has one — never one builder per 
 ```php
 #[UseEloquentBuilder(OrderBuilder::class)]
 class Order extends Model {}
+```
 
+```php
 final class OrderBuilder extends Builder
 {
     public function paid(): static
@@ -264,15 +266,21 @@ final class OrderBuilder extends Builder
 }
 ```
 
-- Extend `Illuminate\Database\Eloquent\Builder`. A class that only implements the builder contract
-  binds silently to the base builder, then fails at the call site with an undefined-method error.
+- Extend `Illuminate\Database\Eloquent\Builder`. `newEloquentBuilder()` tests
+  `is_subclass_of($builderClass, Builder::class)` and **silently falls back** to the default builder when
+  that fails — so a class that merely implements the builder contract produces an undefined-method error
+  at the call site rather than a binding error.
 - Return `static`, not `void`, or chaining and IDE completion break.
-- `Model::query()` is typed `Builder<static>`; add `public static function query(): OrderBuilder` when
-  static analysis must see the builder methods. Relations use the builder at runtime but stay typed
-  `HasMany`/`BelongsTo`.
+- `Model::query()` is annotated `Builder<static>`; add `public static function query(): OrderBuilder`
+  when static analysis must see the builder's own methods. Relations use the builder at runtime but stay
+  typed `HasMany`/`BelongsTo`.
 - A builder adds constraints only: no writes, no services, no authorization.
-- `#[UseEloquentBuilder]` is public but undocumented (12.19+; older apps override `newEloquentBuilder()`).
-  Laravel 13 resolves it through parent classes and traits; 12.x reads only the class it is declared on.
+- **The attribute is read from the declaring class only.** `resolveCustomBuilderClass()` calls
+  `(new ReflectionClass($this))->getAttributes(...)`, which does not walk parents. Declaring it on a base
+  model does **not** apply to subclasses — each model that needs the builder declares it. Verified
+  against 13.17: a child of a model carrying the attribute resolves to the default builder.
+- `#[UseEloquentBuilder]` is public API but absent from the Laravel docs and from Boost's guidelines.
+  Apps whose framework predates it override `newEloquentBuilder()` instead.
 
 ## Policy — authorization
 
