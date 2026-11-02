@@ -93,6 +93,19 @@ slice is wrong.
 In a Livewire feature the full-page component is the entrypoint, and the controller and Form Request
 disappear. The Action, Policy, and one server-side rule set do not.
 
+## Author conventions
+
+Four portable preferences that apply to every project this skill is used on:
+
+- a resource folder's list page is `index.tsx` — never `users-table.tsx`, `list.tsx`, or `-page.tsx`
+- create/edit/view open in `ResponsiveOverlay` — bottom drawer on mobile, right sheet above `sm` — not a
+  separate page, unless the view needs its own URL
+- authorization checks **permissions**, never roles; roles exist to assign permissions in the UI
+- during development, edit the existing migration rather than adding a column migration — **but ask
+  whether the project is live before editing one that has already run**
+
+Reasoning, the component contract, and the live-project signals: `references/conventions.md`.
+
 ## Build order
 
 Never start with the page. Each layer's contract determines the next.
@@ -308,6 +321,7 @@ Read one: `references/inertia.md` or `references/livewire.md`. Detection and sha
 | --- | --- |
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/project-discovery.md` | Always first — establish this app's tenancy, authorization, base classes, money and frontend |
+| `references/conventions.md` | Page naming, responsive overlay, permission-first, and the migration-editing policy |
 | `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
 | `references/authorization.md` | Any feature with permissions — choosing between platform role, sub-permission, and policy |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
