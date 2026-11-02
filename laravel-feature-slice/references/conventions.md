@@ -11,50 +11,96 @@ A resource gets one lowercase-plural folder, and its list page is always `index`
 ```
 resources/js/pages/users/
 ├── index.tsx      # the list — always called index, never users-table.tsx / list.tsx / -page.tsx
-├── create.tsx     # only if create needs its own URL
-├── edit.tsx       # only if edit needs its own URL
-└── show.tsx       # only if the record needs its own URL
+├── chat.tsx       # another page under the same namespace
+└── chat/          # only once chat becomes several pages
+    ├── index.tsx
+    └── history.tsx
 ```
 
-- `index.tsx` is the default list name in every resource. Do not invent `users-table`, `users-list`, or
-  `users-index-page`.
-- `Inertia::render('users/index')` must match the folder and file exactly. A mismatch is a blank
-  screen, not an error — so get the name right the first time.
-- Sub-views that are only reachable from the list (a detail panel, a tab) live beside `index` with the
-  action name: `history.tsx`, `settings.tsx`.
+Rules that make this predictable:
 
-## Create, edit and view open in an overlay
+- **`index.tsx` inside a folder is the page for that folder's own path.** `pages/users/index.tsx` is the
+  page for `/users`; `pages/users/chat/index.tsx` is the page for `/users/chat`.
+- **A folder is a namespace for sibling pages, not a wrapper around one page.** `pages/users/` holds
+  `index.tsx` and its sibling pages; `pages/users/chat/` holds the chat pages.
+- **One page, one file.** A single page does not get its own folder. `users/chat.tsx` is correct;
+  `users/chat/index.tsx` with nothing else in it is a folder that earns nothing.
+- **Switch to a folder when the page gains a second page or co-located components.** The moment chat
+  grows `history` and `conversation`, move it to `chat/index.tsx` + `chat/history.tsx`. Moving is a
+  `git mv` and one `Inertia::render` string.
+- **Never `users/chat/chat.tsx`.** The folder is the namespace; the page inside it is `index.tsx`.
 
-Do not send the user to a separate page to create, edit or view a record that belongs to a list. Use a
-**responsive overlay**: a `Drawer` rising from the bottom on phones, a `Sheet` sliding from the right
-on `sm` and up.
+Inertia resolves `Inertia::render('users/chat')` to **either** `users/chat.tsx` **or**
+`users/chat/index.tsx`, so both work — which is exactly why you need one rule. Having both on disk is a
+silent duplicate: one of them is dead code and nothing warns you.
 
-The component is `ResponsiveOverlay` (`resources/js/components/responsive-overlay.tsx`). Copy it into a
-new project once, then use it everywhere:
+`Inertia::render('users/index')` must match the folder and file exactly. A mismatch is a blank screen,
+not an error.
+
+## Create, edit and view open in an overlay — and the overlay has a URL
+
+Two requirements that pull in the same direction: the list should stay behind the form, and the form
+should have an address.
+
+Do not drive the overlay from local state alone. `useState` means the URL never changes, so the sheet
+cannot be linked to, survives nothing, and the back button leaves the page instead of closing it.
+
+**Make each overlay a route that renders the same list page with a `modal` prop.**
+
+```php
+// routes — three real URLs, all rendering the list component
+Route::get('/users', [UserController::class, 'index'])->name('users.index');
+Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+```
+
+```php
+// controller — same component, plus which overlay to open
+public function index(): Response
+{
+    return Inertia::render('users/index', ['users' => UserResource::collection(User::paginate())]);
+}
+
+public function edit(User $user): Response
+{
+    return Inertia::render('users/index', [
+        'users' => UserResource::collection(User::paginate()),
+        'modal'  => ['type' => 'edit', 'user' => new UserResource($user)],
+    ]);
+}
+```
 
 ```tsx
-<ResponsiveOverlay
-    open={open}
-    onOpenChange={setOpen}
-    title="Edit user"
-    description="Changes apply immediately."
-    footer={<Button form="user-form" type="submit">Save</Button>}
->
-    <UserForm user={user} />
-</ResponsiveOverlay>
+// page — open state comes from props, closing returns to the list URL
+const { modal } = usePage<{ modal?: { type: 'create' | 'edit' | 'show'; user?: User } }>().props;
+
+const close = () =>
+    router.visit(route('users.index'), { only: ['modal'], preserveScroll: true, preserveState: true });
+
+<ResponsiveOverlay open={!!modal} onOpenChange={(open) => !open && close()} title={...}>
 ```
 
-It already handles the breakpoint with `useIsMobile()` — bottom `Drawer` under it, right `Sheet` with
-`sm:max-w-lg` above it. Do not build a second overlay or hand-roll the breakpoint.
+Why each part matters:
 
-Why an overlay rather than a page:
+- **`only: ['modal']`** makes it a partial reload — opening the sheet re-fetches the overlay prop, not the
+  whole list. Without it every open costs a full paginated query.
+- **`preserveState: true`** keeps the list's filters, sort and page in place. Without it, opening create
+  and cancelling resets the table to page one.
+- **`preserveScroll: true`** stops the page jumping to the top behind the sheet.
+- **Closing navigates to the list URL**, so the back button closes the sheet instead of leaving the page.
+- **After a successful write, redirect to the index** — the URL no longer carries `modal`, so the sheet
+  closes on its own. Never redirect back to the edit URL after saving; that reopens it.
 
-- the list stays in view, so the user keeps their place
-- no route change, so no back-button ambiguity and no lost filters
-- one component serves both breakpoints instead of two screens to maintain
+What this buys: `/users/3/edit` is shareable, deep-linkable from a notification, and survives a refresh.
 
-A **full page** is the right call when the view needs its own URL: shareable, deep-linkable, printable,
-or reached from a notification. Those are the exceptions, and they should be deliberate.
+`ResponsiveOverlay` is the component: bottom `Drawer` under `useIsMobile()`, right `Sheet` with
+`sm:max-w-lg` above it. Copy it into a new project once. It takes `open`/`onOpenChange`, so it works
+with either state model — the point is what feeds `open`.
+
+A **full page** remains correct when the view is not a variation of a list row: a report, a print view,
+a multi-step wizard, or anything reached from outside the list. Those get their own file under the
+resource folder.
 
 ## Permission-first, never role-first
 

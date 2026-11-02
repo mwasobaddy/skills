@@ -97,9 +97,12 @@ disappear. The Action, Policy, and one server-side rule set do not.
 
 Four portable preferences that apply to every project this skill is used on:
 
-- a resource folder's list page is `index.tsx` — never `users-table.tsx`, `list.tsx`, or `-page.tsx`
-- create/edit/view open in `ResponsiveOverlay` — bottom drawer on mobile, right sheet above `sm` — not a
-  separate page, unless the view needs its own URL
+- a resource folder's list page is `index.tsx` — never `users-table.tsx`, `list.tsx`, or `-page.tsx`; a
+  folder is a namespace for sibling pages, so one page does not get its own folder (`users/chat.tsx`,
+  not `users/chat/index.tsx` with nothing else in it)
+- create/edit/view open in `ResponsiveOverlay` — bottom drawer on mobile, right sheet above `sm` — **and
+  each overlay is a real route** rendering the list page with a `modal` prop, so it is linkable and the
+  back button closes it instead of leaving the page
 - authorization checks **permissions**, never roles; roles exist to assign permissions in the UI
 - during development, edit the existing migration rather than adding a column migration — **but ask
   whether the project is live before editing one that has already run**
