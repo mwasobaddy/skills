@@ -37,89 +37,14 @@ silent duplicate: one of them is dead code and nothing warns you.
 `Inertia::render('users/index')` must match the folder and file exactly. A mismatch is a blank screen,
 not an error.
 
-## Create, edit and view open in an overlay — and the overlay has a URL
+## Create, edit and view use a URL-based overlay
 
-Two requirements that pull in the same direction: the list should stay behind the form, and the form
-should have an address.
+Which surface to use — modal, sheet, full page — is decided by the job, not by the CRUD verb. The
+matrix, the URL mechanics and the component contract all live in `references/overlays.md`.
 
-Do not drive the overlay from local state alone. `useState` means the URL never changes, so the sheet
-cannot be linked to, survives nothing, and the back button leaves the page instead of closing it.
-
-**Make each overlay a route that renders the same list page with a `modal` prop.**
-
-```php
-// routes — three real URLs, all rendering the list component
-Route::get('/users', [UserController::class, 'index'])->name('users.index');
-Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
-Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
-Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
-```
-
-```php
-// controller — same component, plus which overlay to open
-public function index(): Response
-{
-    return Inertia::render('users/index', ['users' => UserResource::collection(User::paginate())]);
-}
-
-public function edit(User $user): Response
-{
-    return Inertia::render('users/index', [
-        'users' => UserResource::collection(User::paginate()),
-        'modal'  => ['type' => 'edit', 'user' => new UserResource($user)],
-    ]);
-}
-```
-
-```tsx
-// page — open state comes from props, closing returns to the list URL
-const { modal } = usePage<{ modal?: { type: 'create' | 'edit' | 'show'; user?: User } }>().props;
-
-const close = () =>
-    router.visit(route('users.index'), { only: ['modal'], preserveScroll: true, preserveState: true });
-
-<ResponsiveOverlay open={!!modal} onOpenChange={(open) => !open && close()} title={...}>
-```
-
-Why each part matters:
-
-- **`only: ['modal']`** makes it a partial reload — opening the sheet re-fetches the overlay prop, not the
-  whole list. Without it every open costs a full paginated query.
-- **`preserveState: true`** keeps the list's filters, sort and page in place. Without it, opening create
-  and cancelling resets the table to page one.
-- **`preserveScroll: true`** stops the page jumping to the top behind the sheet.
-- **Closing navigates to the list URL**, so the back button closes the sheet instead of leaving the page.
-- **After a successful write, redirect to the index** — the URL no longer carries `modal`, so the sheet
-  closes on its own. Never redirect back to the edit URL after saving; that reopens it.
-
-What this buys: `/users/3/edit` is shareable, deep-linkable from a notification, and survives a refresh.
-
-`ResponsiveOverlay` is the component: bottom `Drawer` under `useIsMobile()`, right `Sheet` with
-`sm:max-w-lg` above it. Copy it into a new project once. It takes `open`/`onOpenChange`, so it works
-with either state model — the point is what feeds `open`.
-
-A **full page** remains correct when the view is not a variation of a list row: a report, a print view,
-a multi-step wizard, or anything reached from outside the list. Those get their own file under the
-resource folder.
-
-### If the app already uses query parameters
-
-An established alternative is `/users/create` → `302` → `/users?create=1`, with the page reading the
-query string. It is URL-based too, and it satisfies "shareable and back-button-correct" — so do not
-rewrite it just to match the shape above.
-
-The differences worth knowing:
-
-| | `modal` prop | query parameter |
-| --- | --- | --- |
-| Requests to open | 1 | 2 (redirect, then page) |
-| Address bar | `/users/create` | `/users?create=1` |
-| Partial reload | `only: ['modal']` | `only` the param's prop |
-| Works with existing links | new routes | if links already exist, keep them |
-
-If the app has both, the query-string form is the compatibility path and the route is the target — keep
-the old links working, but render the page directly for new ones. Whichever the app uses, the rule that
-matters is the same: **the overlay's open state comes from the URL, not from `useState`.**
+The one thing to remember without opening it: **the overlay's open state comes from the URL, never
+from `useState`.** Local state means the sheet cannot be linked to, cannot be refreshed, and the back
+button leaves the page instead of closing it.
 
 ## Permission-first, never role-first
 

@@ -100,14 +100,16 @@ Four portable preferences that apply to every project this skill is used on:
 - a resource folder's list page is `index.tsx` — never `users-table.tsx`, `list.tsx`, or `-page.tsx`; a
   folder is a namespace for sibling pages, so one page does not get its own folder (`users/chat.tsx`,
   not `users/chat/index.tsx` with nothing else in it)
-- create/edit/view open in `ResponsiveOverlay` — bottom drawer on mobile, right sheet above `sm` — **and
-  each overlay is a real route** rendering the list page with a `modal` prop, so it is linkable and the
-  back button closes it instead of leaving the page
+- the surface for a record follows the **job, not the CRUD verb**: a create of 3–5 fields is a
+  **modal**, a create with repeated groups or steps is a **full page**, an **edit is a sheet**, a
+  **view is a full page** (a sheet is only a Quick View peek), and **delete is always a modal with a
+  password**. Every one of them is URL-based — never `useState`
 - authorization checks **permissions**, never roles; roles exist to assign permissions in the UI
 - during development, edit the existing migration rather than adding a column migration — **but ask
   whether the project is live before editing one that has already run**
 
-Reasoning, the component contract, and the live-project signals: `references/conventions.md`.
+Reasoning and the live-project signals: `references/conventions.md`. The surface matrix, URL
+mechanics, component contract and per-resource route shape: `references/overlays.md`.
 
 ## Build order
 
@@ -325,6 +327,7 @@ Read one: `references/inertia.md` or `references/livewire.md`. Detection and sha
 | `references/feature-manifest.md` | Starting a feature and you need the exact file list, in order |
 | `references/project-discovery.md` | Always first — establish this app's tenancy, authorization, base classes, money and frontend |
 | `references/conventions.md` | Page naming, responsive overlay, permission-first, and the migration-editing policy |
+| `references/overlays.md` | Choosing modal vs sheet vs full page for create/edit/view/delete, and wiring it to the URL |
 | `references/multitenancy.md` | Any feature touching tenant data — hosts, subdomain flow, scoping, queues, cross-tenant tests |
 | `references/authorization.md` | Any feature with permissions — choosing between platform role, sub-permission, and policy |
 | `references/layers.md` | Writing or reviewing one layer; need the rule and a code shape |
