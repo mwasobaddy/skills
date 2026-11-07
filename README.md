@@ -107,6 +107,7 @@ before writing scripts, because most of those mistakes were made here.
 | [google-search-docs](google-search-docs) | Grounds SEO and Search answers in Google's own documentation — corrects retired features and stale advice, with crawler, indexing, structured-data, hreflang, and traffic-drop procedures | `npx skills add mwasobaddy/skills --skill google-search-docs` |
 | [seo-build-audit](seo-build-audit) | Implements and verifies technical SEO on any stack — seven-gate checklist, per-framework emission points, a crawl auditor that runs on a live URL or local build, and 11 debugging playbooks | `npx skills add mwasobaddy/skills --skill seo-build-audit` |
 | [laravel-feature-slice](laravel-feature-slice) | Prescriptive Laravel feature architecture — the file manifest per feature, thin controllers, Form Requests, Actions, DTOs, dual validation across Inertia/Livewire, and a checker for architectural drift | `npx skills add mwasobaddy/skills --skill laravel-feature-slice` |
+| [supabase-nextjs-security](supabase-nextjs-security) | Next.js + Supabase security posture — RLS-first data access, multi-tenant policies, key discipline, storage buckets, auth settings, SSR session/cache traps, and corrections for hardening advice that does not apply to Supabase | `npx skills add mwasobaddy/skills --skill supabase-nextjs-security` |
 
 ## License
 
